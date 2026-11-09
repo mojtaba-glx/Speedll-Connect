@@ -1,0 +1,42 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.flutter-automation/
+coverage/
+
+# IDE
+.idea/
+.vscode/*
+!.vscode/
+!.vscode/extensions.json
+*.iml
+
+# Native build outputs
+.gradle/
+.kotlin/
+Pods/
+DerivedData/
+*.xcuserstate
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+*.provisionprofile
+secrets/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
