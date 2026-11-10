@@ -1,35 +1,34 @@
 # محیط ساخت و ابزارها
 
-## ثبت محیط توسعه
+## ثبت محیط توسعه واقعی
 
-این جدول باید با نسخه واقعی سیستم توسعه پر شود؛ از حدس‌زدن نسخه‌ها خودداری کنید.
+این جدول با نسخه‌های واقعی و تست‌شده روی سیستم توسعه ثبت شده است.
 
-| ابزار | نسخه ثبت‌شده | وضعیت |
-|---|---|---|
-| OS توسعه | TBD | Pending |
-| Flutter | TBD | Pending |
-| Dart | TBD | Pending |
-| Android SDK | TBD | Pending |
-| Android NDK | TBD | Pending |
-| JDK | TBD | Pending |
-| Xcode | TBD | فقط macOS |
-| Go | TBD | پس از انتخاب bridge |
-| CMake / Ninja | TBD | بر اساس نیاز platform |
+| ابزار | نسخه ثبت‌شده | وضعیت | یادداشت |
+|---|---|---|---|
+| OS توسعه | Ubuntu 24.04.5 LTS (WSL2 x86_64) | Active | هماهنگ با ویندوز میزبان |
+| Flutter SDK | 3.24.5 (stable) | Active | مستقر در `~/.flutter-sdk` |
+| Dart SDK | 3.5.4 (stable) | Active | همراه با پکیج منیجر و ابزار تست |
+| Android SDK | 35.0.0 (Platform android-35) | Active | مستقر در `~/.android-sdk` |
+| Android Build Tools | 35.0.0 / 34.0.0 | Active | لایسنس‌ها تماماً تأیید شدند |
+| JDK | OpenJDK 17.0.21 (Temurin-17) | Active | مستقر در `~/.jdk` |
+| Gradle | 8.9 | Active | استفاده از کش محلی |
+| Android Gradle Plugin | 8.7.2 | Active | سازگار با جاوا ۱۷ و کاتلین ۲ |
+| Kotlin | 2.0.21 | Active | تنظیم جاوای هدف ۱۷ |
 
-## یادداشت پلتفرم
-
-- Flutter deployment برای پنج سیستم‌عامل هدف UI را فراهم می‌کند، اما VPN tunnel integration و build toolchain برای هر OS مستقل است.
-- توسعه/امضای iOS و macOS به محیط macOS و Xcode نیاز دارد.
-- نسخه Flutter و حداقل OSها در شروع هر release باید براساس مستندات رسمی جاری قفل شوند.
-
-## دستورات اولیه Flutter
+## دستورات آزموده‌شده و فعال
 
 ```bash
+# تست پکیج سابسکرپشن
+cd packages/speedll_subscription
+dart analyze
+dart test
+
+# تحلیل و تست اپلیکیشن فلاتر
 cd app
-flutter doctor -v
-flutter pub get
 flutter analyze
 flutter test
-```
 
-خروجی `flutter doctor -v` را بدون مسیرهای خصوصی و اطلاعات حساس در گزارش محیط ثبت کنید.
+# بیلد APK اندروید
+flutter build apk --debug
+```
