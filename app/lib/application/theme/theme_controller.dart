@@ -7,8 +7,7 @@ final themeModeProvider =
 });
 
 class ThemeController extends StateNotifier<ThemeMode> {
-  ThemeController([ThemeMode initialMode = ThemeMode.system])
-      : super(initialMode);
+  ThemeController([super.initialMode = ThemeMode.system]);
 
   void cycleTheme() {
     state = switch (state) {

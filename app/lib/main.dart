@@ -32,7 +32,7 @@ class SpeedllConnectApp extends ConsumerWidget {
           brightness: Brightness.light,
         ),
         scaffoldBackgroundColor: const Color(0xFFF5F7FB),
-        cardTheme: CardThemeData(
+        cardTheme: CardTheme(
           elevation: 0,
           color: Colors.white,
           shape: RoundedRectangleBorder(
@@ -46,7 +46,7 @@ class SpeedllConnectApp extends ConsumerWidget {
           seedColor: seedColor,
           brightness: Brightness.dark,
         ),
-        cardTheme: CardThemeData(
+        cardTheme: CardTheme(
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(24),
