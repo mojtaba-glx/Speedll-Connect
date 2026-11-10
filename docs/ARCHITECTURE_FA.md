@@ -1,108 +1,51 @@
-# معماری پیشنهادی Speedll Connect
+# معماری Speedll Connect
 
 ## اصول
 
-1. UI و Engine مستقل‌اند.
-2. هیچ Core نباید مستقیماً در Widgetهای Flutter استفاده شود.
-3. اتصال VPN به API حساب Speedll وابسته نیست.
-4. هر پروفایل قبل از اجرا parse، normalize و validate می‌شود.
-5. انتخاب Core براساس feature-level compatibility است، نه صرفاً نام protocol.
-6. هر OS یک adapter بومی و lifecycle مشخص دارد.
+1. رابط کاربری (Flutter UI) و موتور اتصال (VPN Engine) کاملاً مستقل‌اند.
+2. هیچ کدی از Coreها نباید مستقیماً وارد ویجت‌های فلاتر شود.
+3. مدیریت وضعیت رابط کاربری با الگوی واکنشی Riverpod پیاده‌سازی می‌شود.
+4. ماژول اشتراک به صورت یک پکیج مجزا (`packages/speedll_subscription`) از UI تفکیک شده است.
+5. پروفایل‌ها دارای `schemaVersion` بوده و از طریق لایه Migration ارتقا می‌یابند.
+6. برای نسخه MVP، استراتژی تک‌موتوره مبتنی بر sing-box به کار گرفته می‌شود تا پیچیدگی به حداقل برسد.
+7. کدهای بومی پلتفرم‌ها در ساختار رسمی Flutter در `app/` قرار دارند و پوشه `platform/` در ریشه صرفاً حاوی اسناد و مشخصات فنی است.
 
 ## نمای منطقی
 
 ```text
-Flutter UI
+Flutter UI (Presentation Layer)
    │
    ▼
-Application / Use Cases
-   ├── Connection Manager
-   ├── Profile Manager
-   ├── Subscription Manager
-   ├── Theme / Localization / Accessibility
-   └── Speedll Account Client (optional)
+Application Layer (Riverpod Controllers)
+   ├── ConnectionController (Status, Uptime, Actions)
+   ├── ThemeController (Light / Dark / System)
+   └── ProfileManager (Active Profile, List)
           │
           ▼
-Domain Contracts
-   ├── Normalized Profile
-   ├── Engine Capability Report
-   ├── Connection Engine interface
-   └── Native VPN Adapter interface
+Domain Contracts (App) & Packages
+   ├── speedll_subscription Package (Models with schemaVersion, Migration, Parsers, Validators)
+   ├── ConnectionEngine Interface (inspectProfile, connect, disconnect, connectionPhases)
+   └── EngineCapabilityReport
           │
           ▼
-Engine Adapter Layer
-   ├── sing-box Adapter (candidate)
-   └── Xray Adapter (candidate)
+Engine Adapter Layer (Isolated)
+   └── sing-box Adapter (MVP candidate)
           │
           ▼
-Native Platform Integration
-   ├── Android: VpnService + supported engine bridge
-   ├── iOS: Network Extension / Packet Tunnel Provider
-   ├── Windows: service + TUN integration
-   ├── macOS: approved Network Extension / system integration
-   └── Linux: TUN + capabilities/service
-          │
-          ▼
-Remote VPN endpoints
-
-Separate control plane:
-SellBot / Speedll systems ⇄ Speedll Account API ⇄ App
+Native Platform Integration (Standard app/<platform>)
+   ├── Android: VpnService
+   ├── Windows: TUN + Service
+   ├── Linux: TUN + network integration
+   ├── macOS: Network Extension
+   └── iOS: Packet Tunnel Provider
 ```
 
-## اجزای مسئولیت‌دار
+## مدیریت وضعیت (State Management)
 
-### Flutter UI
+- استفاده از `flutter_riverpod` به عنوان استاندارد مدیریت وضعیت برای پشتیبانی از حالت‌های تست‌پذیر و واکنشی بدون ایجاد وابستگی متقابل در ویجت‌ها.
+- جداسازی ویجت‌های نمایشی از کنترلرها در لایه‌های مجزا.
 
-نمایش وضعیت واقعی، سرورها، اشتراک، onboarding، theme، language و پیام‌ها. UI نباید اسرار را parse یا در log چاپ کند.
+## ماژول مستقل اشتراک (`speedll_subscription`)
 
-### Application layer
-
-سناریوهای کاربر مانند Connect، Disconnect، Import Subscription، Select Server و Refresh Subscription را اجرا می‌کند. این لایه engine-specific نیست.
-
-### Subscription pipeline
-
-`Input → Parser → Raw Model → Validator → Normalizer → Capability Check → Secure Store`
-
-Parser باید اطلاعات ناشناخته را حفظ یا صریحاً گزارش کند؛ حذف بی‌صدای تنظیمات TLS، Reality، transport یا routing ممنوع است.
-
-### Connection Manager
-
-- فقط یک نشست فعال برای هر app instance، مگر معماری OS خلاف آن را الزام کند.
-- انتخاب Engine براساس capability report.
-- timeout، cancellation، status stream و recovery policy.
-- جلوگیری از reconnect loop و server flapping.
-- تفکیک خطای permission، config، engine، network و server.
-
-### Engine Adapter
-
-برای هر Core یک Adapter مستقل. Adapter مسئول lifecycle، تبدیل کانفیگ نرمال‌شده به ساختار Engine، دریافت رویدادها و گزارش قابلیت است. تبدیل باید deterministic و تست‌پذیر باشد.
-
-### Native VPN Adapter
-
-مدیریت permission، ایجاد تونل، route/DNS، foreground/background lifecycle، stop و پاک‌سازی سیستم‌عامل. جزئیات و محدودیت هر OS باید مستقل مستند شود.
-
-### Speedll Account API
-
-فقط کنترل حساب و metadata اشتراک. نباید ترافیک کاربر را relay یا proxy کند. در قطع API، profile ذخیره‌شده و اتصال فعال نباید بی‌دلیل از کار بیفتد.
-
-## مدل داده حداقلی
-
-- `Profile`: شناسه داخلی، نام نمایشی، protocol، source، metadata کشور، reference به secret store، نسخه schema.
-- `SecretRef`: شناسه امن محلی؛ نه UUID/Password خام در مدل UI.
-- `Subscription`: منبع، زمان آخرین به‌روزرسانی، etag/hash، وضعیت sync، اطلاعات معتبر حجم/انقضا در صورت وجود.
-- `ConnectionSession`: profileId، engineId، phase، timestamps، خطای sanitized.
-- `CapabilityReport`: ویژگی‌های تشخیص‌داده‌شده، پشتیبانی‌شده، نامشخص و ردشده همراه دلیل.
-
-## پیشنهاد فناوری
-
-- UI: Flutter/Dart.
-- هسته‌ها: ارزیابی sing-box و Xray-core؛ هیچ‌کدام قبل از فاز 1 و 2 تثبیت نشوند.
-- bridge: روش رسمی و قابل نگهداری هر Engine؛ POC پیش از توسعه کامل.
-- Backend: فعلاً اختیاری؛ در صورت نیاز API مستقل، پیاده‌سازی می‌تواند FastAPI باشد.
-- Storage: secure storage بومی برای secrets و database محلی برای metadata غیرمحرمانه.
-
-## محدودیت‌های پلتفرم
-
-Flutter از نظر UI چندسکویی است؛ این به معنی وجود یک پیاده‌سازی VPN مشترک برای همه سیستم‌عامل‌ها نیست. هر پلتفرم entitlement، permission، lifecycle، installer و تست مستقل دارد. مستندات رسمی Flutter: https://docs.flutter.dev/reference/supported-platforms
-
-برای Apple، Packet Tunnel Provider در Network Extension یک مسیر رسمی برای اپلیکیشن VPN بسته‌محور است: https://developer.apple.com/documentation/networkextension/packet-tunnel-provider
+پایپ‌لاین مدیریت اشتراک:
+`Input URI/Raw → SubscriptionParser → Raw Map → ProfileMigrator → ServerProfile (schemaVersion) → ProfileValidator → EngineCapabilityInspection → Secure Storage`

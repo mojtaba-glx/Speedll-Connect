@@ -1,16 +1,8 @@
 # Subscription Pipeline
 
-ساختار موردنظر:
+منطق تجزیه، اعتبارسنجی و تبدیل قالب‌های اشتراک به پکیج مستقل Dart منتقل شده است:
 
-```text
-Input
-  → Source detector
-  → Parser
-  → Raw model
-  → Validator
-  → Normalized profile
-  → Engine capability inspection
-  → Secure secret storage
-```
+مسیر پکیج:
+`packages/speedll_subscription/`
 
-Parser فقط ساختار ورودی را تشخیص می‌دهد؛ تضمین اتصال نیست. در فاز P4 برای هر فرمت تست مثبت، منفی، malformed، oversized و fuzz اضافه شود.
+این پکیج به صورت Pure Dart پیاده‌سازی شده و هیچ وابستگی مستقیمی به رابط کاربری فلاتر ندارد تا امکان تست‌های سریع، اعتبارسنجی و ارتقای اسکیما (Migration) به صورت مستقل فراهم باشد.

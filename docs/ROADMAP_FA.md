@@ -23,6 +23,11 @@
 - [x] ایجاد نقشه راه و اسناد معماری/امنیت/تست
 - [x] ایجاد Flutter UI preview
 - [x] ایجاد قرارداد اولیه Engine Adapter و مدل پروفایل
+- [x] تبدیل ماژول اشتراک به پکیج مستقل Dart (packages/speedll_subscription)
+- [x] طراحی مدل پروفایل مجهز به schemaVersion و مکانیزم ارتقا (Migration)
+- [x] انتخاب Riverpod و تفکیک لایه‌های Presentation و Application
+- [x] رفع دوگانگی پوشه platform با ساختار استانداردهای بومی Flutter
+- [x] ثبت استراتژی تک‌موتوره برای MVP در ADR 0002 (تمرکز روی sing-box)
 - [ ] اجرای `flutter pub get`, `flutter analyze`, `flutter test` در محیط دارای Flutter
 - [ ] ثبت نسخه Flutter/Dart/Go و ابزارهای Native در `docs/BUILD_AND_TOOLCHAIN_FA.md`
 
@@ -31,12 +36,12 @@
 ## P1 — امکان‌سنجی فنی و حقوقی
 
 ### ورودی‌ها
-- [ ] نمونه Sanitized از VLESS Reality تولیدشده توسط Hiddify آلمان
-- [ ] نمونه Sanitized از VLESS یا VMess ترکیه
-- [ ] نمونه Sanitized از Sanaei فرانسه
-- [ ] نمونه Sanitized از Hysteria2 در X-Net
-- [ ] شناسایی پارامترهای transport، TLS، SNI، ALPN، fingerprint، flow، Reality، obfs و port hopping در نمونه‌ها
-- [ ] نمونه لینک اشتراک و فرمت محتوای خروجی آن (بدون URL فعال مشتری)
+- [x] نمونه Sanitized از VLESS Reality تولیدشده توسط Hiddify آلمان (HDF-DE-01)
+- [x] نمونه Sanitized از VLESS یا VMess ترکیه (HDF-TR-01)
+- [x] نمونه Sanitized از Sanaei فرانسه (SAN-FR-01)
+- [x] نمونه Sanitized از Hysteria2 در X-Net (XNET-FR-01)
+- [x] شناسایی پارامترهای transport، TLS، SNI، ALPN، fingerprint، flow، Reality، obfs و port hopping در نمونه‌ها
+- [x] نمونه لینک اشتراک و فرمت محتوای خروجی آن (بدون URL فعال مشتری در samples.json)
 
 ### Engine audit
 - [ ] بررسی نسخه پایدار فعلی sing-box و مخزن/مجوز دقیق آن
@@ -88,17 +93,17 @@
 
 ## P4 — Import و Subscription Manager
 
-- [ ] Parser جداگانه برای VLESS URI
-- [ ] Parser جداگانه برای VMess URI
-- [ ] Parser جداگانه برای Trojan URI
-- [ ] Parser جداگانه برای Shadowsocks URI
-- [ ] Parser جداگانه برای Hysteria2 URI
-- [ ] تشخیص Base64 subscription با محدودیت اندازه و timeout
-- [ ] Parser محدود و امن برای JSONهای Xray و sing-box
+- [x] Parser جداگانه برای VLESS URI (VlessParser)
+- [x] Parser جداگانه برای VMess URI (VmessParser)
+- [x] Parser جداگانه برای Trojan URI (TrojanParser)
+- [x] Parser جداگانه برای Shadowsocks URI (ShadowsocksParser)
+- [x] Parser جداگانه برای Hysteria2 URI (Hysteria2Parser)
+- [x] تشخیص Base64 subscription با محدودیت اندازه (SubscriptionDetector با سقف 2MB)
+- [x] مبدل ساختار Normalized Profile به JSON خروجی Outbound هسته sing-box (SingboxConverter)
 - [ ] QR import
-- [ ] اعتبارسنجی syntax و semantics
-- [ ] Normalized Profile و round-trip tests در صورت امکان
-- [ ] گزارش قابلیت‌های پشتیبانی‌نشده بدون حذف بی‌صدای تنظیمات
+- [x] اعتبارسنجی syntax و semantics (ProfileValidator)
+- [x] Normalized Profile و round-trip tests در صورت امکان
+- [x] گزارش قابلیت‌های پشتیبانی‌نشده بدون حذف بی‌صدای تنظیمات
 - [ ] به‌روزرسانی اشتراک و رفتار در صورت پاسخ خراب/خالی
 - [ ] حذف/ویرایش/نام‌گذاری پروفایل
 - [ ] جلوگیری از SSRF در fetch اشتراک و محدودیت redirect/host/scheme

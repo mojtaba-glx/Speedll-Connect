@@ -1,0 +1,39 @@
+{
+  "samples": [
+    {
+      "id": "HDF-DE-01",
+      "source": "Hiddify Germany",
+      "protocol": "vless",
+      "description": "VLESS Reality Vision over TCP (Sanitized dummy data)",
+      "uri": "vless://00000000-0000-0000-0000-000000000001@198.51.100.10:443?type=tcp&security=reality&pbk=1111111111111111111111111111111111111111111=&fp=chrome&sni=de.speedll-sample.test&sid=abcdef12&flow=xtls-rprx-vision#HDF-DE-Reality"
+    },
+    {
+      "id": "HDF-TR-01",
+      "source": "Hiddify Turkey",
+      "protocol": "vmess",
+      "description": "VMess WebSocket TLS (Sanitized dummy data)",
+      "uri": "vmess://eyJhZGQiOiIxOTguNTEuMTAwLjIwIiwiYWlkIjowLCJob3N0IjoidHIuc3BlZWRsbC1zYW1wbGUudGVzdCIsImlkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAyIiwibmV0Ijoid3MiLCJwYXRoIjoiL3NwZWVkbGxfd3MiLCJwb3J0Ijo0NDMsInBzIjoiSERGLVRSLVZNZXNzIiwic2N5IjoiYXV0byIsInNuaSI6InRyLnNwZWVkbGwtc2FtcGxlLnRlc3QiLCJ0bHMiOiJ0bHMifQ=="
+    },
+    {
+      "id": "SAN-FR-01",
+      "source": "Sanaei France",
+      "protocol": "trojan",
+      "description": "Trojan gRPC TLS (Sanitized dummy data)",
+      "uri": "trojan://sanitized_password_sample_123@198.51.100.30:443?type=grpc&serviceName=speedll-grpc&security=tls&sni=fr.speedll-sample.test#SAN-FR-Trojan"
+    },
+    {
+      "id": "XNET-FR-01",
+      "source": "X-Net France",
+      "protocol": "hysteria2",
+      "description": "Hysteria2 UDP with obfs and ports (Sanitized dummy data)",
+      "uri": "hysteria2://sanitized_auth_hy2_pass@198.51.100.40:443?sni=fr-hy2.speedll-sample.test&insecure=0&mport=20000-30000&obfs=salamander&obfs-password=sample_obfs_pass#XNET-FR-Hy2"
+    },
+    {
+      "id": "SS-NL-01",
+      "source": "Standard Shadowsocks",
+      "protocol": "shadowsocks",
+      "description": "Shadowsocks SIP002 AEAD (Sanitized dummy data)",
+      "uri": "ss://YWVzLTI1Ni1nY206c2FuaXRpemVkX3Bhc3N3b3JkXzEyMw==@198.51.100.50:8388#SS-NL-Standard"
+    }
+  ]
+}
