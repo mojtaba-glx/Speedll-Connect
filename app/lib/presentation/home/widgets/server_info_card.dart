@@ -4,11 +4,13 @@ class ServerInfoCard extends StatelessWidget {
   const ServerInfoCard({
     required this.serverName,
     required this.subscriptionName,
+    this.onTapServer,
     super.key,
   });
 
   final String serverName;
   final String subscriptionName;
+  final VoidCallback? onTapServer;
 
   @override
   Widget build(BuildContext context) {
@@ -19,52 +21,44 @@ class ServerInfoCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Column(
           children: [
-            _InfoRow(
-              icon: Icons.dns_outlined,
-              label: 'موقعیت سرور',
-              value: serverName,
+            InkWell(
+              onTap: onTapServer,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Icon(Icons.dns_outlined, color: colorScheme.primary),
+                    const SizedBox(width: 12),
+                    const Expanded(child: Text('موقعیت سرور')),
+                    Text(
+                      serverName,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(width: 6),
+                    const Icon(Icons.chevron_left_rounded, size: 20),
+                  ],
+                ),
+              ),
             ),
             Divider(
-              height: 28,
+              height: 24,
               color: colorScheme.outlineVariant,
             ),
-            _InfoRow(
-              icon: Icons.account_circle_outlined,
-              label: 'اشتراک',
-              value: subscriptionName,
+            Row(
+              children: [
+                Icon(Icons.account_circle_outlined, color: colorScheme.primary),
+                const SizedBox(width: 12),
+                const Expanded(child: Text('اشتراک')),
+                Text(
+                  subscriptionName,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
             ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Row(
-      children: [
-        Icon(icon, color: colorScheme.primary),
-        const SizedBox(width: 12),
-        Expanded(child: Text(label)),
-        Text(
-          value,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
-      ],
     );
   }
 }

@@ -62,28 +62,27 @@
 
 ## P2 — Proof of Concept و تثبیت معماری
 
-- [ ] ساخت PoC مستقل اتصال با sing-box روی Android
-- [ ] ساخت PoC مستقل اتصال با Xray روی Android، در صورت نیاز واقعی
+- [x] ساخت PoC اتصال با sing-box روی Android با VpnService بومی
+- [x] تعریف استراتژی تک‌موتوره برای MVP (تصویب sing-box و تعویق Xray در ADR 0002)
 - [ ] ساخت PoC مستقل Windows برای TUN و چرخه start/stop
-- [ ] مقایسه پایداری، مصرف حافظه، latency، زمان اتصال و پیچیدگی بسته‌بندی
-- [ ] تست حداقل نمونه‌های Hiddify/Sanaei/X-Net
-- [ ] تعریف Normalized Profile Schema نسخه‌دار
-- [ ] تعریف Engine Adapter API و Native VPN Adapter API
-- [ ] ثبت ADR انتخاب Core و روش packaging
-- [ ] تعیین حداقل نسخه OS و معماری CPU پشتیبانی‌شده
+- [x] تست حداقل نمونه‌های Hiddify/Sanaei/X-Net با فیکسچرهای Sanitized
+- [x] تعریف Normalized Profile Schema نسخه‌دار (ServerProfile با schemaVersion و ProfileMigrator)
+- [x] تعریف Engine Adapter API و Native VPN Adapter API (AndroidVpnEngineAdapter)
+- [x] ثبت ADR انتخاب Core و روش packaging (sing-box در jniLibs و فراخوانی مجزا)
+- [x] تعیین حداقل نسخه OS و معماری CPU پشتیبانی‌شده (Android 7.0+ / API 24+, arm64-v8a و armeabi-v7a)
 
 **معیار خروج:** حداقل یک پروفایل واقعی Sanitized در PoC هر پلتفرم MVP متصل شود، disconnect واقعی تست شود و تصمیم موتور با شواهد ثبت شود.
 
 ## P3 — Android MVP
 
-- [ ] ساخت Android application shell و package ID رسمی
-- [ ] پیاده‌سازی VpnService و permission flow
-- [ ] مدیریت start/stop و foreground service notification
-- [ ] مدیریت lifecycle و جلوگیری از اجرای دو نشست
-- [ ] اتصال Engine Adapter منتخب
+- [x] ساخت Android application shell و package ID رسمی (ir.speedll.speedll_connect_app)
+- [x] پیاده‌سازی VpnService و permission flow (SpeedllVpnService)
+- [x] مدیریت start/stop و foreground service notification
+- [x] مدیریت lifecycle و جلوگیری از اجرای دو نشست
+- [x] اتصال Engine Adapter منتخب (sing-box v1.14.4)
 - [ ] Secure Storage برای پروفایل و اسرار
-- [ ] صفحه خانه با وضعیت واقعی Engine
-- [ ] انتخاب سرور و فهرست پروفایل‌ها
+- [x] صفحه خانه با وضعیت واقعی Engine
+- [x] انتخاب سرور و فهرست پروفایل‌ها (SelectServerDialog)
 - [ ] پشتیبانی تغییر Wi-Fi/mobile و بازیابی کنترل‌شده
 - [ ] نمایش پیام خطای قابل فهم و کد تشخیصی بدون secret
 - [ ] تست Android API/ABIهای مصوب
