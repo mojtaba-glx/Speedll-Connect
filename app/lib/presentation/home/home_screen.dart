@@ -384,6 +384,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ),
                                 const SizedBox(width: 7),
                                 Flexible(
+                                  flex: 2,
                                   child: Text(
                                     location.localizedName(strings.isFa),
                                     maxLines: 1,
@@ -396,30 +397,48 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   ),
                                 ),
                                 if (isConnected &&
-                                    PingService.resolveServerIpSync(activeProfile) != null) ...[
+                                    PingService.resolveServerIpSync(
+                                          activeProfile,
+                                          preferIpv6: connectionState
+                                              .routingOptions.enableIpv6,
+                                        ) !=
+                                        null) ...[
                                   const SizedBox(width: 5),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 1.5,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: palette.secondaryAccent.withOpacity(0.12),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: palette.secondaryAccent.withOpacity(0.35),
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      PingService.resolveServerIpSync(activeProfile)!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: TextStyle(
-                                        color: palette.secondaryAccent,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 10.5,
-                                        fontFamily: 'monospace',
+                                  Flexible(
+                                    flex: 3,
+                                    child: Directionality(
+                                      textDirection: TextDirection.ltr,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 1.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: palette.secondaryAccent
+                                              .withOpacity(0.12),
+                                          borderRadius:
+                                              BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: palette.secondaryAccent
+                                                .withOpacity(0.35),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          PingService.resolveServerIpSync(
+                                            activeProfile,
+                                            preferIpv6: connectionState
+                                                .routingOptions.enableIpv6,
+                                          )!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: palette.secondaryAccent,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 10.5,
+                                            fontFamily: 'monospace',
+                                          ),
+                                        ),
                                       ),
                                     ),
                                   ),

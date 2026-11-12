@@ -129,30 +129,39 @@ class _ImportSubscriptionDialogState
         final subId = 'sub_${SafeProxyUri.stableHash(text)}';
         final existingMatch =
             existingSubs.where((s) => s.id == subId || s.url == text).firstOrNull;
-        final extractedSubscriber = updateResult.subscriberName ??
+        final extractedSubscriber = SubscriptionSource.sanitizeSubscriberName(
+              updateResult.subscriberName,
+            ) ??
             SubscriptionSource.extractSubscriberName(
               url: text,
               profiles: updateResult.profiles,
             );
-        var cleanAutoName = autoName.trim();
-        if (cleanAutoName.startsWith('base64:')) {
-          cleanAutoName =
-              SubscriptionSource.tryDecodeBase64(cleanAutoName) ?? '';
-        }
+        final cleanAutoName =
+            SubscriptionSource.sanitizeSubscriberName(autoName) ?? '';
+        final existingClean = existingMatch != null
+            ? SubscriptionSource.sanitizeSubscriberName(existingMatch.name)
+            : null;
         final fallbackName = SubscriptionSource.generateSmartFallbackName(text);
-        final resolvedName = customName.isNotEmpty
-            ? customName
-            : (extractedSubscriber != null && extractedSubscriber.isNotEmpty
-                ? 'اشتراک $extractedSubscriber'
+        final cleanCustomName = customName.isNotEmpty
+            ? (customName.toLowerCase().startsWith('base64:')
+                ? (SubscriptionSource.sanitizeSubscriberName(customName) ??
+                    customName)
+                : customName)
+            : '';
+        final resolvedName = cleanCustomName.isNotEmpty
+            ? cleanCustomName
+            : (extractedSubscriber != null
+                ? SubscriptionSource.formatSubscriptionTitle(
+                    extractedSubscriber,
+                  )
                 : (existingMatch != null &&
-                        !existingMatch.name.contains('.') &&
-                        !existingMatch.name.contains('(') &&
-                        !existingMatch.name.startsWith('base64:')
-                    ? existingMatch.name
-                    : (cleanAutoName.isNotEmpty &&
-                            !cleanAutoName.contains('.') &&
-                            !cleanAutoName.startsWith('base64:')
-                        ? 'اشتراک $cleanAutoName'
+                        existingClean != null &&
+                        !existingMatch.name.contains('(')
+                    ? existingMatch.displayUserName
+                    : (cleanAutoName.isNotEmpty
+                        ? SubscriptionSource.formatSubscriptionTitle(
+                            cleanAutoName,
+                          )
                         : 'اشتراک $fallbackName')));
         final subSource = SubscriptionSource(
           id: subId,

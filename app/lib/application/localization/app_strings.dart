@@ -264,6 +264,11 @@ class AppStrings {
   String get trafficSniffingSubtitle => isFa
       ? 'تشخیص دامنه واقعی برای مسیریابی دقیق و جلوگیری از نشت DNS'
       : 'Detects domain names from traffic for accurate routing';
+  String get enableIpv6Title =>
+      isFa ? 'پشتیبانی از IPv6' : 'IPv6 Support';
+  String get enableIpv6Subtitle => isFa
+      ? 'اولویت IPv6 در اتصال، DNS و نمایش IP (پیش‌فرض خاموش)'
+      : 'Prefer IPv6 for tunnel, DNS, and server IP display (off by default)';
   String get enableMuxTitle => isFa
       ? 'تجمیع اتصالات (Multiplex / Mux)'
       : 'Connection Multiplexing (Mux)';

@@ -262,6 +262,20 @@ class SettingsPanel extends ConsumerWidget {
                 },
               ),
               _SettingsTile(
+                icon: Icons.language_rounded,
+                iconColor: const Color(0xFF0EA5E9),
+                iconBg: const Color(0xFF0EA5E9).withOpacity(0.14),
+                title: strings.enableIpv6Title,
+                subtitle: strings.enableIpv6Subtitle,
+                palette: palette,
+                switchValue: routing.enableIpv6,
+                onSwitchChanged: (val) {
+                  ref.read(connectionControllerProvider.notifier).updateRoutingOptions(
+                        routing.copyWith(enableIpv6: val),
+                      );
+                },
+              ),
+              _SettingsTile(
                 icon: Icons.phonelink_setup_rounded,
                 iconColor: const Color(0xFF64748B),
                 iconBg: const Color(0xFF64748B).withOpacity(0.14),
@@ -501,6 +515,8 @@ class SettingsPanel extends ConsumerWidget {
             '8.8.8.8': '8.8.8.8 (Google)',
             '9.9.9.9': '9.9.9.9 (Quad9)',
             '94.140.14.14': '94.140.14.14 (AdGuard)',
+            '2606:4700:4700::1111': '2606:4700:4700::1111 (Cloudflare IPv6)',
+            '2001:4860:4860::8888': '2001:4860:4860::8888 (Google IPv6)',
           }
         : const <String, String>{
             '178.22.122.100': '178.22.122.100 (Shecan)',
@@ -509,6 +525,8 @@ class SettingsPanel extends ConsumerWidget {
             '10.202.10.11': '10.202.10.11 (403)',
             '1.1.1.1': '1.1.1.1 (Cloudflare)',
             '8.8.8.8': '8.8.8.8 (Google)',
+            '2606:4700:4700::1111': '2606:4700:4700::1111 (Cloudflare IPv6)',
+            '2001:4860:4860::8888': '2001:4860:4860::8888 (Google IPv6)',
           };
 
     showDialog(
@@ -520,30 +538,80 @@ class SettingsPanel extends ConsumerWidget {
           isRemote ? strings.remoteDnsTitle : strings.directDnsTitle,
           style: TextStyle(color: palette.textPrimary, fontSize: 16),
         ),
-        content: SingleChildScrollView(
+        content: SizedBox(
+          width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              for (final entry in presets.entries)
-                ListTile(
-                  title: Text(entry.value, style: TextStyle(color: palette.textPrimary, fontSize: 13)),
-                  trailing: currentDns == entry.key
-                      ? Icon(Icons.check_circle_rounded, color: palette.secondaryAccent, size: 20)
-                      : null,
-                  onTap: () {
-                    ref.read(connectionControllerProvider.notifier).updateRoutingOptions(
-                          isRemote ? routing.copyWith(remoteDnsServer: entry.key) : routing.copyWith(directDnsServer: entry.key),
-                        );
-                    Navigator.of(ctx).pop();
-                  },
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final entry in presets.entries)
+                        ListTile(
+                          dense: true,
+                          visualDensity: VisualDensity.compact,
+                          title: Text(
+                            entry.value,
+                            style: TextStyle(
+                              color: palette.textPrimary,
+                              fontSize: 13,
+                            ),
+                          ),
+                          trailing: currentDns == entry.key
+                              ? Icon(
+                                  Icons.check_circle_rounded,
+                                  color: palette.secondaryAccent,
+                                  size: 20,
+                                )
+                              : null,
+                          onTap: () {
+                            ref
+                                .read(connectionControllerProvider.notifier)
+                                .updateRoutingOptions(
+                                  isRemote
+                                      ? routing.copyWith(
+                                          remoteDnsServer: entry.key,
+                                        )
+                                      : routing.copyWith(
+                                          directDnsServer: entry.key,
+                                        ),
+                                );
+                            Navigator.of(ctx).pop();
+                          },
+                        ),
+                    ],
+                  ),
                 ),
+              ),
               const Divider(),
               ListTile(
-                leading: Icon(Icons.edit_rounded, color: palette.secondaryAccent, size: 18),
-                title: Text(strings.manualDnsTitle, style: TextStyle(color: palette.secondaryAccent, fontWeight: FontWeight.w700)),
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                leading: Icon(
+                  Icons.edit_rounded,
+                  color: palette.secondaryAccent,
+                  size: 18,
+                ),
+                title: Text(
+                  strings.manualDnsTitle,
+                  style: TextStyle(
+                    color: palette.secondaryAccent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 onTap: () {
                   Navigator.of(ctx).pop();
-                  _showManualDnsInput(context, ref, isRemote, currentDns, palette, strings, routing);
+                  _showManualDnsInput(
+                    context,
+                    ref,
+                    isRemote,
+                    currentDns,
+                    palette,
+                    strings,
+                    routing,
+                  );
                 },
               ),
             ],

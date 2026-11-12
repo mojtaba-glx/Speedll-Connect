@@ -186,6 +186,7 @@ class SecureProfileStorage {
           enableTrafficSniffing: enableSniffing,
           enableMux: map['enableMux'] as bool? ?? false,
           killSwitch: map['killSwitch'] as bool? ?? false,
+          enableIpv6: map['enableIpv6'] as bool? ?? false,
         );
       }
     } catch (_) {}
@@ -204,6 +205,7 @@ class SecureProfileStorage {
       'enableTrafficSniffing': options.enableTrafficSniffing,
       'enableMux': options.enableMux,
       'killSwitch': options.killSwitch,
+      'enableIpv6': options.enableIpv6,
       'dnsDefaultsVersion': 3,
     });
     await _storage.write(key: _routingOptionsKey, value: payload);

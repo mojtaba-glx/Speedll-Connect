@@ -4,11 +4,17 @@ import android.os.Build
 import android.util.Log
 import io.nekohasekai.libbox.ExchangeContext
 import io.nekohasekai.libbox.LocalDNSTransport
+import java.net.Inet4Address
+import java.net.Inet6Address
 import java.net.InetAddress
+import java.net.UnknownHostException
 
 class LocalResolver : LocalDNSTransport {
     private companion object {
         const val TAG = "SpeedllLocalResolver"
+        const val RCODE_NO_ERROR = 0
+        const val RCODE_SERVER_FAILURE = 2
+        const val RCODE_NAME_ERROR = 3
     }
 
     override fun raw(): Boolean = false
@@ -16,7 +22,7 @@ class LocalResolver : LocalDNSTransport {
     override fun lookup(ctx: ExchangeContext?, network: String?, domain: String?) {
         if (ctx == null) return
         if (domain.isNullOrBlank()) {
-            ctx.errorCode(1)
+            ctx.errorCode(RCODE_NAME_ERROR)
             return
         }
 
@@ -29,17 +35,38 @@ class LocalResolver : LocalDNSTransport {
             }
 
             if (addresses.isNullOrEmpty()) {
-                ctx.errorCode(1)
-            } else {
-                val ips = addresses.joinToString("\n") { it.hostAddress ?: "" }.trim()
-                if (ips.isEmpty()) {
-                    ctx.errorCode(1)
-                } else {
-                    ctx.success(ips)
-                }
+                ctx.errorCode(RCODE_NAME_ERROR)
+                return
             }
-        } catch (_: Exception) {
-            ctx.errorCode(1)
+
+            val family = network?.trim()?.lowercase()
+            val filtered = when (family) {
+                "ip4", "ipv4" -> addresses.filterIsInstance<Inet4Address>()
+                "ip6", "ipv6" -> addresses.filterIsInstance<Inet6Address>()
+                else -> addresses.toList()
+            }
+
+            if (filtered.isEmpty()) {
+                // Domain resolved for another IP family; signal NODATA instead of NXDOMAIN.
+                ctx.errorCode(RCODE_NO_ERROR)
+                return
+            }
+
+            val ips = filtered
+                .mapNotNull { it.hostAddress?.substringBefore('%')?.trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString("\n")
+
+            if (ips.isEmpty()) {
+                ctx.errorCode(RCODE_NO_ERROR)
+            } else {
+                ctx.success(ips)
+            }
+        } catch (_: UnknownHostException) {
+            ctx.errorCode(RCODE_NAME_ERROR)
+        } catch (e: Exception) {
+            Log.w(TAG, "Local DNS lookup failed for $domain ($network): ${e.message}")
+            ctx.errorCode(RCODE_SERVER_FAILURE)
         }
     }
 

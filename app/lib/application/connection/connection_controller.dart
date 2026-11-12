@@ -458,19 +458,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
               annotated,
             );
             await subscriptionsNotifier.addOrUpdateSubscription(
-              source.copyWith(
-                lastUpdatedAt: DateTime.now().toUtc(),
-                lastStatusMessage:
-                    'به‌روزرسانی موفق (${result.profiles.length} سرور)',
-                userInfo: result.userInfo,
-                subscriberName: result.subscriberName ?? source.subscriberName,
-                name: result.subscriberName != null &&
-                        (source.name.contains('.') ||
-                            source.name.startsWith('sub_') ||
-                            RegExp(r'^اشتراک\s*\d+').hasMatch(source.name))
-                    ? 'اشتراک ${result.subscriberName}'
-                    : source.name,
-              ),
+              _buildUpdatedSubscription(source, result),
             );
           } else {
             await profilesNotifier.addProfiles(result.profiles);
@@ -492,11 +480,54 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
     );
   }
 
+  SubscriptionSource _buildUpdatedSubscription(
+    SubscriptionSource source,
+    SubscriptionUpdateResult result,
+  ) {
+    final cleanIncomingSub =
+        SubscriptionSource.sanitizeSubscriberName(result.subscriberName);
+    final cleanExistingSub =
+        SubscriptionSource.sanitizeSubscriberName(source.subscriberName);
+    final effectiveSub = cleanIncomingSub ?? cleanExistingSub;
+
+    final currentName = source.name.trim();
+    final isStaleAutoName = currentName.isEmpty ||
+        currentName == 'اشتراک' ||
+        currentName.toLowerCase().contains('base64:') ||
+        currentName.contains('.') ||
+        currentName.startsWith('sub_') ||
+        RegExp(r'^اشتراک\s*\d+$').hasMatch(currentName);
+
+    String resolvedName;
+    if (effectiveSub != null &&
+        (isStaleAutoName ||
+            (cleanIncomingSub != null &&
+                cleanIncomingSub != cleanExistingSub))) {
+      resolvedName = SubscriptionSource.formatSubscriptionTitle(effectiveSub);
+    } else if (currentName.toLowerCase().contains('base64:')) {
+      resolvedName = source.displayUserName;
+    } else {
+      resolvedName = source.name;
+    }
+
+    return source.copyWith(
+      lastUpdatedAt: DateTime.now().toUtc(),
+      lastStatusMessage: 'به‌روزرسانی موفق (${result.profiles.length} سرور)',
+      userInfo: result.userInfo,
+      subscriberName: effectiveSub,
+      name: resolvedName,
+    );
+  }
+
   /// Measures the real TCP ping of the currently active profile and updates [ConnectionUiState.livePingMs].
   Future<int?> pingActiveProfile({int samples = 3}) async {
     final active = state.activeProfile;
     if (active == null) return null;
-    final ms = await pingService.measurePingMs(active, samples: samples);
+    final ms = await pingService.measurePingMs(
+      active,
+      samples: samples,
+      preferIpv6: state.routingOptions.enableIpv6,
+    );
     if (!mounted) return ms;
 
     final updatedMap = <String, int>{
@@ -533,6 +564,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
     try {
       final results = await pingService.measureAllPings(
         profiles,
+        preferIpv6: state.routingOptions.enableIpv6,
         onSingleResult: (profileId, ms) {
           if (!mounted) return;
           final nextMap = <String, int>{
@@ -589,6 +621,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
         pingMap = await pingService.measureBatchParallel(
           profiles,
           samplesPerProfile: 1,
+          preferIpv6: state.routingOptions.enableIpv6,
           onSingleResult: (profileId, ms) {
             if (!mounted) return;
             state = state.copyWith(
@@ -697,19 +730,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
             annotated,
           );
           await subscriptionsNotifier.addOrUpdateSubscription(
-            sub.copyWith(
-              lastUpdatedAt: DateTime.now().toUtc(),
-              lastStatusMessage:
-                  'به‌روزرسانی موفق (${res.profiles.length} سرور)',
-              userInfo: res.userInfo,
-              subscriberName: res.subscriberName ?? sub.subscriberName,
-              name: res.subscriberName != null &&
-                      (sub.name.contains('.') ||
-                          sub.name.startsWith('sub_') ||
-                          RegExp(r'^اشتراک\s*\d+').hasMatch(sub.name))
-                  ? 'اشتراک ${res.subscriberName}'
-                  : sub.name,
-            ),
+            _buildUpdatedSubscription(sub, res),
           );
           if (state.activeProfile == null ||
               !PingService.isConnectableServer(state.activeProfile!)) {
@@ -836,6 +857,10 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
   }
 
   Future<void> updateRoutingOptions(SingboxRoutingOptions options) async {
+    final ipv6Changed = options.enableIpv6 != state.routingOptions.enableIpv6;
+    if (ipv6Changed) {
+      PingService.clearDnsCache();
+    }
     final currentEngine = engine;
     if (currentEngine is AndroidVpnEngineAdapter) {
       currentEngine.updateRoutingOptions(options);
@@ -851,6 +876,9 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
       _isHotSwitching = true;
       try {
         await engine.connect(active);
+        if (ipv6Changed) {
+          unawaited(pingActiveProfile(samples: 1));
+        }
       } catch (e) {
         _isHotSwitching = false;
         final report = DiagnosticErrorMapper.fromCodeOrError(e);
@@ -958,6 +986,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
     final results = await pingService.measureBatchParallel(
       profiles,
       samplesPerProfile: 1,
+      preferIpv6: state.routingOptions.enableIpv6,
       onSingleResult: (profileId, ms) {
         if (!mounted) return;
         state = state.copyWith(
@@ -1013,6 +1042,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
             pingMap = await pingService.measureBatchParallel(
               profiles,
               samplesPerProfile: 1,
+              preferIpv6: state.routingOptions.enableIpv6,
               onSingleResult: (profileId, ms) {
                 if (!mounted) return;
                 state = state.copyWith(

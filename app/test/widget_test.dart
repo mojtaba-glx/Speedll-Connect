@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -281,7 +282,12 @@ void main() {
       final palette = SpeedllThemePalette.of(preset);
       expect(palette.backgroundGradient.length, greaterThanOrEqualTo(3));
     }
-    expect(AppVersion.fullVersion, equals('1.8.0 (Build 14)'));
+    expect(
+      AppVersion.fullVersion,
+      equals('${AppVersion.versionName} (Build ${AppVersion.buildNumber})'),
+    );
+    expect(AppVersion.versionName, equals('1.9.0'));
+    expect(AppVersion.buildNumber, equals(15));
 
     final winAdapter = WindowsVpnEngineAdapter(useTunAdapter: true);
     final desktopConfig =
@@ -568,5 +574,144 @@ void main() {
 
     final savedRouting = await storage.loadRoutingOptions();
     expect(savedRouting.directDnsServer, equals('8.8.8.8'));
+  });
+
+  test(
+      'PingService strictly stays on IPv4 when preferIpv6 is false and prefers IPv6 when enabled',
+      () async {
+    PingService.clearDnsCache();
+
+    var v6Queried = false;
+    final pingService = PingService(
+      customDnsLookup: (host, type) async {
+        if (type == InternetAddressType.IPv6) {
+          v6Queried = true;
+          return <InternetAddress>[InternetAddress('2a01:4f8::1')];
+        }
+        return <InternetAddress>[InternetAddress('198.51.100.10')];
+      },
+    );
+
+    const domainProfile = ServerProfile(
+      id: 'dual-1',
+      displayName: 'DualStack Server',
+      protocol: 'vless',
+      source: ProfileSource.manual,
+      serverAddress: 'dualstack.example.com',
+      serverPort: 443,
+    );
+
+    // 1. Default IPv4 mode must NOT query or select IPv6 automatically
+    final v4Targets = await pingService.resolveTargetCandidates(
+      'dualstack.example.com',
+      preferIpv6: false,
+    );
+    expect(v6Queried, isFalse);
+    expect(v4Targets, equals(const <String>['198.51.100.10']));
+    expect(
+      PingService.resolveServerIpSync(domainProfile, preferIpv6: false),
+      equals('198.51.100.10'),
+    );
+
+    // 2. Opt-in IPv6 mode prioritizes IPv6 first while keeping IPv4 fallback
+    final v6Targets = await pingService.resolveTargetCandidates(
+      'dualstack.example.com',
+      preferIpv6: true,
+    );
+    expect(v6Queried, isTrue);
+    expect(v6Targets, equals(const <String>['2a01:4f8::1', '198.51.100.10']));
+    expect(
+      PingService.resolveServerIpSync(domainProfile, preferIpv6: true),
+      equals('2a01:4f8::1'),
+    );
+
+    // 3. Literal bracketed IPv6 server strips brackets cleanly
+    const bracketedIpv6Profile = ServerProfile(
+      id: 'lit-v6',
+      displayName: 'Literal IPv6',
+      protocol: 'vless',
+      source: ProfileSource.manual,
+      serverAddress: '[2001:db8::42]',
+      serverPort: 443,
+    );
+    expect(
+      PingService.resolveServerIpSync(bracketedIpv6Profile, preferIpv6: true),
+      equals('2001:db8::42'),
+    );
+  });
+
+  testWidgets(
+      'Settings IPv6 toggle defaults OFF, persists enableIpv6, Home displays IPv6 badge & decoded base64 sub title',
+      (tester) async {
+    const storage = SecureProfileStorage();
+    await storage.saveAppLanguageCode('fa');
+    await storage.saveHasCompletedLanguageOnboarding(true);
+    await storage.saveThemePresetName('royalViolet');
+    await storage.saveRoutingOptions(const SingboxRoutingOptions());
+
+    const ipv6Profile = ServerProfile(
+      id: 'srv-v6-1',
+      displayName: '🇩🇪 Germany IPv6',
+      protocol: 'vless',
+      source: ProfileSource.subscription,
+      serverAddress: '2001:db8::abcd:1234',
+      serverPort: 443,
+      extraParams: <String, dynamic>{
+        'subscriptionId': 'sub-b64',
+        'uuid': '11111111-1111-1111-1111-111111111111',
+      },
+    );
+    await storage.saveProfiles(const <ServerProfile>[ipv6Profile]);
+    await storage.saveActiveProfileId(ipv6Profile.id);
+
+    // Simulate legacy corrupted saved JSON containing raw "اشتراک base64:bW9qdGFiYQ=="
+    final corruptedSub = SubscriptionSource.fromJson(const <String, dynamic>{
+      'id': 'sub-b64',
+      'name': 'اشتراک base64:bW9qdGFiYQ==',
+      'url': 'https://example.com/sub/secret',
+    });
+    await storage.saveSubscriptions(<SubscriptionSource>[corruptedSub]);
+
+    final mockEngine = MockConnectionEngine();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          connectionEngineProvider.overrideWithValue(mockEngine),
+        ],
+        child: const SpeedllConnectApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Decoded title renders instead of raw base64
+    expect(find.text('اشتراک mojtaba'), findsOneWidget);
+    expect(find.textContaining('base64:'), findsNothing);
+
+    // Connect and verify Home Screen displays the IPv6 address badge cleanly
+    await tester.tap(find.byIcon(Icons.power_settings_new_rounded));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+
+    expect(find.text('2001:db8::abcd:1234'), findsOneWidget);
+
+    // Verify enableIpv6 defaults to false before toggling
+    final initialRouting = await storage.loadRoutingOptions();
+    expect(initialRouting.enableIpv6, isFalse);
+
+    // Navigate to Settings and toggle IPv6 Support ON
+    await tester.tap(find.byIcon(Icons.settings_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('پشتیبانی از IPv6'),
+      250,
+    );
+    expect(find.text('پشتیبانی از IPv6'), findsOneWidget);
+
+    await tester.tap(find.text('پشتیبانی از IPv6'));
+    await tester.pumpAndSettle();
+
+    final updatedRouting = await storage.loadRoutingOptions();
+    expect(updatedRouting.enableIpv6, isTrue);
   });
 }

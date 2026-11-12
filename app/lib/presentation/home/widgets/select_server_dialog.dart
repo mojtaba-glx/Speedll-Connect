@@ -86,16 +86,18 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
     SubscriptionSource sub,
     List<ServerProfile> subProfiles,
   ) {
-    if (sub.subscriberName != null && sub.subscriberName!.trim().isNotEmpty) {
-      final s = sub.subscriberName!.trim();
-      return s.startsWith('اشتراک ') ? s : 'اشتراک $s';
+    final cleanSub = SubscriptionSource.sanitizeSubscriberName(
+      sub.subscriberName,
+    );
+    if (cleanSub != null) {
+      return SubscriptionSource.formatSubscriptionTitle(cleanSub);
     }
 
     final d = sub.displayUserName;
     if (!d.contains('.') &&
         !d.contains('(') &&
         d != 'اشتراک کاربر' &&
-        !d.contains('base64:')) {
+        !d.toLowerCase().contains('base64:')) {
       return d;
     }
 
@@ -104,14 +106,15 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
       profiles: subProfiles,
     );
     if (extracted != null && extracted.isNotEmpty) {
-      return extracted.startsWith('اشتراک ') ? extracted : 'اشتراک $extracted';
+      return SubscriptionSource.formatSubscriptionTitle(extracted);
     }
 
-    final clean = sub.name.replaceAll(RegExp(r'\s*\([^\)]+\)'), '').trim();
-    if (clean.isNotEmpty &&
-        !clean.contains('.') &&
-        !clean.startsWith('base64:')) {
-      return clean.startsWith('اشتراک ') ? clean : 'اشتراک $clean';
+    final clean = SubscriptionSource.sanitizeSubscriberName(
+      sub.name.replaceAll(RegExp(r'\s*\([^\)]+\)'), ''),
+      allowDots: false,
+    );
+    if (clean != null) {
+      return SubscriptionSource.formatSubscriptionTitle(clean);
     }
 
     return d;
@@ -1190,13 +1193,25 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
                           ),
                           const SizedBox(width: 6),
                           Flexible(
-                            child: Text(
-                              '${profile.serverAddress ?? "—"}:${profile.serverPort ?? 443}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: palette.textSecondary.withOpacity(0.70),
-                                fontSize: 10.5,
+                            child: Directionality(
+                              textDirection: TextDirection.ltr,
+                              child: Text(
+                                () {
+                                  final rawHost =
+                                      (profile.serverAddress ?? '—').trim();
+                                  final port = profile.serverPort ?? 443;
+                                  final formattedHost = rawHost.contains(':') &&
+                                          !rawHost.startsWith('[')
+                                      ? '[$rawHost]'
+                                      : rawHost;
+                                  return '$formattedHost:$port';
+                                }(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: palette.textSecondary.withOpacity(0.70),
+                                  fontSize: 10.5,
+                                ),
                               ),
                             ),
                           ),
