@@ -141,6 +141,10 @@ class SingboxConverter {
         'action': 'hijack-dns',
       },
       <String, dynamic>{
+        'port': <int>[53],
+        'action': 'hijack-dns',
+      },
+      <String, dynamic>{
         'protocol': 'dns',
         'action': 'hijack-dns',
       },
@@ -223,16 +227,23 @@ class SingboxConverter {
             'detour': 'direct',
           };
 
+    final remoteServer = options.remoteDnsServer.trim().isNotEmpty
+        ? options.remoteDnsServer.trim()
+        : '1.1.1.1';
+
     return <String, dynamic>{
       'servers': <Map<String, dynamic>>[
         <String, dynamic>{
-          'type': 'tcp',
+          'type': 'udp',
           'tag': 'dns-remote',
-          'server': options.remoteDnsServer.trim().isNotEmpty
-              ? options.remoteDnsServer.trim()
-              : '1.1.1.1',
+          'server': remoteServer,
           'server_port': 53,
           'detour': 'proxy',
+        },
+        <String, dynamic>{
+          'type': 'local',
+          'tag': 'dns-local',
+          'detour': 'direct',
         },
         directDnsEntry,
       ],
@@ -309,7 +320,7 @@ class SingboxConverter {
       'fdfe:dcba:9876::1/126',
     ],
     int mtu = 9000,
-    String stack = 'mixed',
+    String stack = 'gvisor',
   }) {
     final isWireguard = profile.protocol.toLowerCase() == 'wireguard';
     final outboundOrEndpoint = buildOutbound(

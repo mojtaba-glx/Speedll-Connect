@@ -329,7 +329,9 @@ class LibboxPlatformInterface(
 
     override fun readWIFIState(): WIFIState? = null
 
-    override fun localDNSTransport(): LocalDNSTransport? = null
+    private val localResolver = LocalResolver()
+
+    override fun localDNSTransport(): LocalDNSTransport = localResolver
 
     override fun startNeighborMonitor(listener: NeighborUpdateListener) {
     }

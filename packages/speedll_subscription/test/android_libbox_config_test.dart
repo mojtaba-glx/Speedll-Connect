@@ -34,7 +34,7 @@ void main() {
       expect(tun['mtu'], equals(9000));
       expect(tun['auto_route'], isTrue);
       expect(tun.containsKey('auto_redirect'), isFalse);
-      expect(tun['stack'], equals('mixed'));
+      expect(tun['stack'], equals('gvisor'));
       expect(tun['dns_mode'], equals('hijack'));
       expect(
         inbounds.any((inbound) => inbound['type'] == 'mixed'),
@@ -63,6 +63,15 @@ void main() {
       expect(route['default_domain_resolver'], equals('dns-direct'));
       expect(route.containsKey('override_android_vpn'), isFalse);
       expect(rules.any((rule) => rule['action'] == 'sniff'), isTrue);
+      expect(
+        rules.any(
+          (rule) =>
+              rule['port'] is List &&
+              (rule['port'] as List).contains(53) &&
+              rule['action'] == 'hijack-dns',
+        ),
+        isTrue,
+      );
       expect(
         rules.any(
           (rule) => rule['protocol'] == 'dns' && rule['action'] == 'hijack-dns',

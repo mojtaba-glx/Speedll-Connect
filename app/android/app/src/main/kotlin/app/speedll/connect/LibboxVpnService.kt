@@ -173,7 +173,7 @@ class LibboxVpnService : VpnService(), CommandServerHandler {
             updateStatus("connected")
             updateNotification("اتصال برقرار است")
         } catch (e: Exception) {
-            Log.e(TAG, "libbox start failed: ${e.javaClass.simpleName}")
+            Log.e(TAG, "libbox start failed: ${e.message}", e)
             if (stopping) {
                 cleanupResources()
             } else {
