@@ -4,8 +4,8 @@
 
 | Sample ID | منبع | پروتکل | قابلیت‌های مهم | Parser Status | sing-box Outbound Gen | آزمون منفی / امنیت | نتیجه |
 |---|---|---|---|---|---|---|---|
-| HDF-DE-01 | Hiddify آلمان | VLESS | Reality, Vision (xtls-rprx-vision), Chrome FP | Pass | Pass | Pass | آماده ارزیابی Native |
-| HDF-TR-01 | Hiddify ترکیه | VMess | WebSocket Transport, TLS, JSON Base64 | Pass | Pass | Pass | آماده ارزیابی Native |
+| HDF-DE-01 | نمونه آلمان | VLESS | Reality, Vision (xtls-rprx-vision), Chrome FP | Pass | Pass | Pass | آماده ارزیابی Native |
+| HDF-TR-01 | نمونه ترکیه | VMess | WebSocket Transport, TLS, JSON Base64 | Pass | Pass | Pass | آماده ارزیابی Native |
 | SAN-FR-01 | Sanaei فرانسه | Trojan | gRPC Transport, ServiceName, TLS | Pass | Pass | Pass | آماده ارزیابی Native |
 | XNET-FR-01 | X-Net فرانسه | Hysteria2 | Salamander obfs, mport (20000-30000), TLS | Pass | Pass | Pass | آماده ارزیابی Native |
 | SS-NL-01 | Shadowsocks | Shadowsocks | SIP002 AEAD, aes-256-gcm | Pass | Pass | Pass | آماده ارزیابی Native |

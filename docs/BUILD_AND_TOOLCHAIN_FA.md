@@ -29,6 +29,27 @@ cd app
 flutter analyze
 flutter test
 
+# دریافت AAR بومی libbox (برای checkout تازه یا پس از پاک‌شدن فایل بزرگ)
+cd ..
+scripts/fetch_libbox_aar.sh
+
 # بیلد APK اندروید
+cd app
 flutter build apk --debug
 ```
+
+فایل `app/android/app/libs/libbox.aar` به دلیل حجم بیش از ۱۰۰ مگابایت در git نگهداری نمی‌شود؛ پیش از هر بیلد اندروید اسکریپت بالا باید یک بار اجرا شود.
+
+## بیلد هسته بومی و مسیر پیش‌فرض
+
+APK اندروید با `app.speedll.connect` برای تست هسته بومی لینگ‌بوکس ساخته می‌شود:
+
+```bash
+cd app
+flutter build apk --release
+flutter build apk --release --dart-define=SPEEDLL_NATIVE_LIBBOX=false
+```
+
+- پیش‌فرض Dart در `AndroidVpnEngineAdapter` مسیر بومی (`libbox`) را فعال می‌کند.
+- با `--dart-define=SPEEDLL_NATIVE_LIBBOX=false` از مسیر قدیمی `SpeedllVpnService` استفاده می‌شود.
+- برای تست مقایسه‌ای باتری، فایل release بومی و legacy به‌ترتیب از روی دستگاه یک‌بار نصب و پیدا می‌شوند.

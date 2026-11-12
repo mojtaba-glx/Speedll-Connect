@@ -8,7 +8,7 @@
 - [ ] P1 — بررسی امکان‌سنجی، مجوزها و نمونه‌های واقعی Sanitized
 - [ ] P2 — تثبیت معماری و Proof of Concept موتور
 - [ ] P3 — نسخه Android آزمایشی با اتصال واقعی
-- [ ] P4 — Import و مدیریت اشتراک قابل اتکا
+- [x] P4 — Import و مدیریت اشتراک قابل اتکا
 - [ ] P5 — API و امکانات حساب Speedll
 - [ ] P6 — Windows و Linux
 - [ ] P7 — macOS و iOS
@@ -16,7 +16,7 @@
 
 ---
 
-## P0 — زیرساخت مخزن (شروع شده)
+## P0 — زیرساخت مخزن (تکمیل‌شده)
 
 - [x] ایجاد ساختار پوشه‌ها
 - [x] ایجاد README و قواعد دستیارهای AI
@@ -28,15 +28,16 @@
 - [x] انتخاب Riverpod و تفکیک لایه‌های Presentation و Application
 - [x] رفع دوگانگی پوشه platform با ساختار استانداردهای بومی Flutter
 - [x] ثبت استراتژی تک‌موتوره برای MVP در ADR 0002 (تمرکز روی sing-box)
-- [ ] اجرای `flutter pub get`, `flutter analyze`, `flutter test` در محیط دارای Flutter
-- [ ] ثبت نسخه Flutter/Dart/Go و ابزارهای Native در `docs/BUILD_AND_TOOLCHAIN_FA.md`
+- [x] اجرای `flutter pub get`, `flutter analyze`, `flutter test` در محیط دارای Flutter
+- [x] ثبت نسخه Flutter/Dart/Go و ابزارهای Native در `docs/BUILD_AND_TOOLCHAIN_FA.md`
+- [x] یکسان‌سازی شناسه اپ در Android/iOS/macOS/Linux (`app.speedll.connect`)
 
 **معیار خروج:** پروژه روی یک محیط توسعه مشخص باز شود، analyze و test موفق باشند و UI preview بدون ادعای اتصال واقعی اجرا شود.
 
 ## P1 — امکان‌سنجی فنی و حقوقی
 
 ### ورودی‌ها
-- [x] نمونه Sanitized از VLESS Reality تولیدشده توسط Hiddify آلمان (HDF-DE-01)
+- [x] نمونه Sanitized از VLESS Reality تولیدشده توسط پنل مبدأ آلمان (HDF-DE-01)
 - [x] نمونه Sanitized از VLESS یا VMess ترکیه (HDF-TR-01)
 - [x] نمونه Sanitized از Sanaei فرانسه (SAN-FR-01)
 - [x] نمونه Sanitized از Hysteria2 در X-Net (XNET-FR-01)
@@ -65,7 +66,7 @@
 - [x] ساخت PoC اتصال با sing-box روی Android با VpnService بومی
 - [x] تعریف استراتژی تک‌موتوره برای MVP (تصویب sing-box و تعویق Xray در ADR 0002)
 - [ ] ساخت PoC مستقل Windows برای TUN و چرخه start/stop
-- [x] تست حداقل نمونه‌های Hiddify/Sanaei/X-Net با فیکسچرهای Sanitized
+- [x] تست حداقل نمونه‌های پنل‌های مبدأ/Sanaei/X-Net با فیکسچرهای Sanitized
 - [x] تعریف Normalized Profile Schema نسخه‌دار (ServerProfile با schemaVersion و ProfileMigrator)
 - [x] تعریف Engine Adapter API و Native VPN Adapter API (AndroidVpnEngineAdapter)
 - [x] ثبت ADR انتخاب Core و روش packaging (sing-box در jniLibs و فراخوانی مجزا)
@@ -75,16 +76,16 @@
 
 ## P3 — Android MVP
 
-- [x] ساخت Android application shell و package ID رسمی (ir.speedll.speedll_connect_app)
+- [x] ساخت Android application shell و package ID رسمی (app.speedll.connect)
 - [x] پیاده‌سازی VpnService و permission flow (SpeedllVpnService)
 - [x] مدیریت start/stop و foreground service notification
 - [x] مدیریت lifecycle و جلوگیری از اجرای دو نشست
 - [x] اتصال Engine Adapter منتخب (sing-box v1.14.4)
-- [ ] Secure Storage برای پروفایل و اسرار
+- [x] Secure Storage برای پروفایل و اسرار (Android Keystore AES-256-GCM + flutter_secure_storage)
 - [x] صفحه خانه با وضعیت واقعی Engine
 - [x] انتخاب سرور و فهرست پروفایل‌ها (SelectServerDialog)
-- [ ] پشتیبانی تغییر Wi-Fi/mobile و بازیابی کنترل‌شده
-- [ ] نمایش پیام خطای قابل فهم و کد تشخیصی بدون secret
+- [x] پشتیبانی تغییر Wi-Fi/mobile و بازیابی کنترل‌شده (ConnectivityManager.NetworkCallback در SpeedllVpnService با بازراه‌اندازی کنترل‌شده هسته و وضعیت `reconnecting`)
+- [x] نمایش پیام خطای قابل فهم و کد تشخیصی بدون secret (DiagnosticErrorMapper با پالایش خودکار UUID، IP، توکن و رمزها)
 - [ ] تست Android API/ABIهای مصوب
 - [ ] تست battery، background، reboot و crash recovery
 
@@ -98,14 +99,14 @@
 - [x] Parser جداگانه برای Shadowsocks URI (ShadowsocksParser)
 - [x] Parser جداگانه برای Hysteria2 URI (Hysteria2Parser)
 - [x] تشخیص Base64 subscription با محدودیت اندازه (SubscriptionDetector با سقف 2MB)
-- [x] مبدل ساختار Normalized Profile به JSON خروجی Outbound هسته sing-box (SingboxConverter)
-- [ ] QR import
+- [x] مبدل ساختار Normalized Profile به JSON خروجی Outbound هسته sing-box (SingboxConverter) به همراه Routing Rules پایه (Bypass شبکه محلی/LAN و دامنه‌های `.ir`)
+- [x] QR import (اسکن مستقیم با دوربین در Android از طریق QrScannerActivity و ZXing Core)
 - [x] اعتبارسنجی syntax و semantics (ProfileValidator)
 - [x] Normalized Profile و round-trip tests در صورت امکان
 - [x] گزارش قابلیت‌های پشتیبانی‌نشده بدون حذف بی‌صدای تنظیمات
-- [ ] به‌روزرسانی اشتراک و رفتار در صورت پاسخ خراب/خالی
-- [ ] حذف/ویرایش/نام‌گذاری پروفایل
-- [ ] جلوگیری از SSRF در fetch اشتراک و محدودیت redirect/host/scheme
+- [x] به‌روزرسانی اشتراک و رفتار در صورت پاسخ خراب/خالی (SubscriptionUpdater با مدیریت قطعی اینترنت و حفظ پروفایل‌های قبلی)
+- [x] حذف/ویرایش/نام‌گذاری پروفایل
+- [x] جلوگیری از SSRF در fetch اشتراک و محدودیت redirect/host/scheme
 
 **معیار خروج:** مجموعه fixtureهای Sanitized، تست منفی/مثبت، تست payload بزرگ/بدخواه و تست حفظ پارامترهای امنیتی.
 
