@@ -57,3 +57,6 @@ app/android/app/libs/libbox.aar.download
 platform/windows/host/speedll_windows_host
 platform/windows/host/speedll_windows_host.exe
 Speedll-Connect-Windows-*.exe
+
+# Local release test directory
+release-test/
