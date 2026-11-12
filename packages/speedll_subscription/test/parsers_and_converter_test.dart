@@ -248,6 +248,7 @@ trojan://sanitized_pass@198.51.100.30:443?security=tls&type=grpc&serviceName=grp
         routingOptions: const SingboxRoutingOptions(
           bypassLan: true,
           bypassIranDomains: true,
+          enableTrafficSniffing: true,
           customDirectDomains: ['bank.test.ir'],
           customDirectCidrs: ['185.143.232.0/22'],
         ),
@@ -438,6 +439,130 @@ trojan://sanitized_pass@198.51.100.30:443?security=tls&type=grpc&serviceName=grp
       expect(updatedUrls.length, equals(1));
       expect(updatedProfiles.length, equals(1));
       expect(updatedProfiles.first.displayName, equals('DE-Updated'));
+    });
+
+    test('SingboxRoutingOptions defaults traffic sniffing to false', () {
+      const converter = SingboxConverter();
+      const defaults = SingboxRoutingOptions();
+      expect(defaults.enableTrafficSniffing, isFalse);
+
+      final profile = converter.buildFullConfig(
+        const ServerProfile(
+          id: 'p1',
+          displayName: 'Test-VLESS',
+          protocol: 'vless',
+          source: ProfileSource.manual,
+          serverAddress: '198.51.100.10',
+          serverPort: 443,
+          extraParams: <String, dynamic>{
+            'uuid': '00000000-0000-0000-0000-000000000001',
+            'security': 'none',
+          },
+        ),
+      );
+      final route = profile['route'] as Map<String, dynamic>;
+      final rules = route['rules'] as List<Map<String, dynamic>>;
+      expect(rules.any((r) => r['action'] == 'sniff'), isFalse);
+      expect(
+        rules.any((r) => r['protocol'] == 'dns' && r['action'] == 'hijack-dns'),
+        isTrue,
+      );
+    });
+
+    test('parses valid DNS presets/URIs and rejects malformed DNS inputs', () {
+      const converter = SingboxConverter();
+      // Positive formats
+      final ipv4 = SingboxConverter.parseDnsServerConfig(
+        '8.8.8.8',
+        tag: 'dns-direct',
+      );
+      expect(ipv4, equals(<String, dynamic>{
+        'type': 'udp',
+        'tag': 'dns-direct',
+        'server': '8.8.8.8',
+        'server_port': 53,
+      }));
+
+      final ipv4Port = SingboxConverter.parseDnsServerConfig(
+        '1.1.1.1:5353',
+        tag: 'dns-remote',
+        detour: 'proxy',
+      );
+      expect(ipv4Port?['server_port'], equals(5353));
+      expect(ipv4Port?['detour'], equals('proxy'));
+
+      final dot = SingboxConverter.parseDnsServerConfig(
+        'tls://dns.google',
+        tag: 'dns-remote',
+        detour: 'proxy',
+      );
+      expect(dot?['type'], equals('tls'));
+      expect(dot?['server'], equals('dns.google'));
+      expect(dot?['server_port'], equals(853));
+      expect(dot?['domain_resolver'], equals('dns-local'));
+      expect(dot?['detour'], equals('proxy'));
+
+      final doh = SingboxConverter.parseDnsServerConfig(
+        'https://dns.google/dns-query',
+        tag: 'dns-direct',
+      );
+      expect(doh?['type'], equals('https'));
+      expect(doh?['server'], equals('dns.google'));
+      expect(doh?['server_port'], equals(443));
+      expect(doh?['path'], equals('/dns-query'));
+      expect(doh?['domain_resolver'], equals('dns-local'));
+      expect(doh?.containsKey('detour'), isFalse);
+
+      final ipv6Bracketed = SingboxConverter.parseDnsServerConfig(
+        '[2606:4700:4700::1111]:53',
+        tag: 'dns-direct',
+      );
+      expect(ipv6Bracketed?['type'], equals('udp'));
+      expect(ipv6Bracketed?['server'], equals('2606:4700:4700::1111'));
+      expect(ipv6Bracketed?['server_port'], equals(53));
+
+      expect(SingboxConverter.isValidDnsServer('2001:4860:4860::8888'), isTrue);
+      expect(SingboxConverter.isValidDnsServer('tcp://9.9.9.9:53'), isTrue);
+      expect(SingboxConverter.isValidDnsServer('h3://cloudflare-dns.com/dns-query'), isTrue);
+      expect(SingboxConverter.isValidDnsServer('local'), isTrue);
+      expect(SingboxConverter.isValidDnsServer('dns.quad9.net'), isTrue);
+
+      // Negative & malformed formats
+      for (final invalid in const <String>[
+        '',
+        '   ',
+        '999.999.999.999',
+        'not a valid dns',
+        'ftp://1.1.1.1',
+        'https://',
+        '1.1.1.1:70000',
+        '1.1.1.1:0',
+        '[::1:53',
+        'javascript:alert(1)',
+      ]) {
+        expect(
+          SingboxConverter.isValidDnsServer(invalid),
+          isFalse,
+          reason: 'Expected invalid: "$invalid"',
+        );
+      }
+
+      // Malformed saved options gracefully fall back without crashing config build.
+      final fallbackConfig = converter.buildDnsConfig(
+        const SingboxRoutingOptions(
+          remoteDnsServer: 'not a dns',
+          directDnsServer: '999.999.999.999',
+        ),
+      );
+      final servers = fallbackConfig['servers'] as List<Map<String, dynamic>>;
+      expect(
+        servers.firstWhere((s) => s['tag'] == 'dns-remote')['server'],
+        equals('1.1.1.1'),
+      );
+      expect(
+        servers.firstWhere((s) => s['tag'] == 'dns-direct')['type'],
+        equals('local'),
+      );
     });
   });
 }

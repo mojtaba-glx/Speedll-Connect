@@ -38,7 +38,7 @@ class SingboxRoutingOptions {
     this.customDirectCidrs = const <String>[],
     this.remoteDnsServer = '1.1.1.1',
     this.directDnsServer = '178.22.122.100',
-    this.enableTrafficSniffing = true,
+    this.enableTrafficSniffing = false,
     this.enableMux = false,
     this.killSwitch = false,
   });
@@ -132,10 +132,8 @@ class SingboxConverter {
     SingboxRoutingOptions options = const SingboxRoutingOptions(),
   ]) {
     final rules = <Map<String, dynamic>>[
-      if (options.enableTrafficSniffing)
-        <String, dynamic>{
-          'action': 'sniff',
-        },
+      // Hijack DNS traffic before optional traffic sniffing so DNS packets
+      // never stall or fail inside stream/packet sniffers on Android gVisor TUN.
       <String, dynamic>{
         'inbound': 'dns-in',
         'action': 'hijack-dns',
@@ -148,6 +146,12 @@ class SingboxConverter {
         'protocol': 'dns',
         'action': 'hijack-dns',
       },
+      if (options.enableTrafficSniffing)
+        <String, dynamic>{
+          'action': 'sniff',
+          'sniffer': <String>['tls', 'http', 'quic'],
+          'timeout': '100ms',
+        },
     ];
 
     if (options.bypassLan) {
@@ -209,41 +213,37 @@ class SingboxConverter {
       ...options.customDirectDomains,
     ];
 
-    final directDnsServerTrimmed = options.directDnsServer.trim();
-    final isLocalDirect = directDnsServerTrimmed.isEmpty ||
-        directDnsServerTrimmed.toLowerCase() == 'local' ||
-        directDnsServerTrimmed == '178.22.122.100';
-    final directDnsEntry = isLocalDirect
-        ? <String, dynamic>{
-            'type': 'local',
-            'tag': 'dns-direct',
-            'detour': 'direct',
-          }
-        : <String, dynamic>{
-            'type': 'udp',
-            'tag': 'dns-direct',
-            'server': directDnsServerTrimmed,
-            'server_port': 53,
-            'detour': 'direct',
-          };
+    // Keep direct/local DNS entries free of `detour: 'direct'` because sing-box
+    // v1.14 rejects detouring to an empty direct outbound on core startup.
+    final directDnsEntry = parseDnsServerConfig(
+          options.directDnsServer,
+          tag: 'dns-direct',
+          mapIranDefaultToLocal: true,
+        ) ??
+        <String, dynamic>{
+          'type': 'local',
+          'tag': 'dns-direct',
+        };
 
-    final remoteServer = options.remoteDnsServer.trim().isNotEmpty
-        ? options.remoteDnsServer.trim()
-        : '1.1.1.1';
-
-    return <String, dynamic>{
-      'servers': <Map<String, dynamic>>[
+    final remoteDnsEntry = parseDnsServerConfig(
+          options.remoteDnsServer,
+          tag: 'dns-remote',
+          detour: 'proxy',
+        ) ??
         <String, dynamic>{
           'type': 'udp',
           'tag': 'dns-remote',
-          'server': remoteServer,
+          'server': '1.1.1.1',
           'server_port': 53,
           'detour': 'proxy',
-        },
+        };
+
+    return <String, dynamic>{
+      'servers': <Map<String, dynamic>>[
+        remoteDnsEntry,
         <String, dynamic>{
           'type': 'local',
           'tag': 'dns-local',
-          'detour': 'direct',
         },
         directDnsEntry,
       ],
@@ -257,6 +257,174 @@ class SingboxConverter {
       'strategy': 'ipv4_only',
       'final': 'dns-remote',
     };
+  }
+
+  static final RegExp _dnsHostnamePattern = RegExp(
+    r'^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,63}$',
+  );
+  static final RegExp _bracketedIpv6WithPortPattern = RegExp(
+    r'^\[([^\]]+)\](?::(\d+))?$',
+  );
+
+  /// Returns whether [host] is a valid IPv4 or IPv6 address literal.
+  static bool isIpLiteral(String host) {
+    try {
+      Uri.parseIPv4Address(host);
+      return true;
+    } on FormatException {
+      return _tryIsIpv6(host);
+    }
+  }
+
+  /// Returns whether [raw] is a supported DNS server string (`local`, IP,
+  /// `ip:port`, domain, or `udp://` / `tcp://` / `tls://` / `https://` / `h3://`).
+  static bool isValidDnsServer(String raw) {
+    return parseDnsServerConfig(raw, tag: 'validate') != null;
+  }
+
+  /// Parses [raw] into a sing-box DNS server configuration map for [tag],
+  /// returning `null` if [raw] is empty or malformed.
+  ///
+  /// When [detour] is omitted or `'direct'`, no `detour` key is emitted so
+  /// sing-box uses its direct dialer without triggering an empty-detour error.
+  static Map<String, dynamic>? parseDnsServerConfig(
+    String raw, {
+    required String tag,
+    String? detour,
+    bool mapIranDefaultToLocal = false,
+  }) {
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty || RegExp(r'\s').hasMatch(trimmed)) {
+      return null;
+    }
+
+    if (trimmed.toLowerCase() == 'local' ||
+        (mapIranDefaultToLocal && trimmed == '178.22.122.100')) {
+      return <String, dynamic>{
+        'type': 'local',
+        'tag': tag,
+      };
+    }
+
+    final includeProxyDetour =
+        detour != null && detour.isNotEmpty && detour != 'direct';
+
+    if (trimmed.contains('://')) {
+      final uri = Uri.tryParse(trimmed);
+      if (uri == null || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+        return null;
+      }
+      final scheme = uri.scheme.toLowerCase();
+      if (scheme != 'udp' &&
+          scheme != 'tcp' &&
+          scheme != 'tls' &&
+          scheme != 'https' &&
+          scheme != 'h3') {
+        return null;
+      }
+
+      final host = uri.host;
+      final isIp = isIpLiteral(host);
+      if (!isIp && !_dnsHostnamePattern.hasMatch(host)) {
+        return null;
+      }
+      if (uri.hasPort && (uri.port < 1 || uri.port > 65535)) {
+        return null;
+      }
+
+      final defaultPort = switch (scheme) {
+        'https' || 'h3' => 443,
+        'tls' => 853,
+        _ => 53,
+      };
+      final entry = <String, dynamic>{
+        'type': scheme,
+        'tag': tag,
+        'server': host,
+        'server_port': uri.hasPort ? uri.port : defaultPort,
+      };
+      if (scheme == 'https' || scheme == 'h3') {
+        final path = uri.path.isEmpty ? '/dns-query' : uri.path;
+        entry['path'] = uri.hasQuery ? '$path?${uri.query}' : path;
+      }
+      if (!isIp) {
+        entry['domain_resolver'] = 'dns-local';
+      }
+      if (includeProxyDetour) {
+        entry['detour'] = detour;
+      }
+      return entry;
+    }
+
+    String host;
+    var port = 53;
+    var isIp = false;
+
+    if (trimmed.startsWith('[')) {
+      final match = _bracketedIpv6WithPortPattern.firstMatch(trimmed);
+      if (match == null) {
+        return null;
+      }
+      host = match.group(1)!;
+      try {
+        Uri.parseIPv6Address(host);
+        isIp = true;
+      } on FormatException {
+        return null;
+      }
+      final portGroup = match.group(2);
+      if (portGroup != null) {
+        final parsedPort = int.tryParse(portGroup);
+        if (parsedPort == null || parsedPort < 1 || parsedPort > 65535) {
+          return null;
+        }
+        port = parsedPort;
+      }
+    } else if (_tryIsIpv6(trimmed)) {
+      host = trimmed;
+      isIp = true;
+    } else if (trimmed.contains('/')) {
+      return null;
+    } else if (trimmed.contains(':')) {
+      final parts = trimmed.split(':');
+      if (parts.length != 2 || parts[0].isEmpty) {
+        return null;
+      }
+      host = parts[0];
+      final parsedPort = int.tryParse(parts[1]);
+      if (parsedPort == null || parsedPort < 1 || parsedPort > 65535) {
+        return null;
+      }
+      port = parsedPort;
+      isIp = isIpLiteral(host);
+      if (!isIp && !_dnsHostnamePattern.hasMatch(host)) {
+        return null;
+      }
+    } else {
+      host = trimmed;
+      isIp = isIpLiteral(host);
+      if (!isIp && !_dnsHostnamePattern.hasMatch(host)) {
+        return null;
+      }
+    }
+
+    return <String, dynamic>{
+      'type': 'udp',
+      'tag': tag,
+      'server': host,
+      'server_port': port,
+      if (!isIp) 'domain_resolver': 'dns-local',
+      if (includeProxyDetour) 'detour': detour,
+    };
+  }
+
+  static bool _tryIsIpv6(String value) {
+    try {
+      Uri.parseIPv6Address(value);
+      return true;
+    } on FormatException {
+      return false;
+    }
   }
 
   /// Builds a complete sing-box v1.14+ configuration JSON map with local mixed SOCKS5/HTTP + UDP DNS inbounds, outbounds/endpoints, DNS, and routing rules.

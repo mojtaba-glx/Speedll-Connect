@@ -62,7 +62,7 @@ void main() {
       expect(route['auto_detect_interface'], isTrue);
       expect(route['default_domain_resolver'], equals('dns-direct'));
       expect(route.containsKey('override_android_vpn'), isFalse);
-      expect(rules.any((rule) => rule['action'] == 'sniff'), isTrue);
+      expect(rules.any((rule) => rule['action'] == 'sniff'), isFalse);
       expect(
         rules.any(
           (rule) =>
@@ -150,5 +150,74 @@ void main() {
       expect(multiplex['padding'], isFalse);
       expect(multiplex.containsKey('min_streams'), isFalse);
     });
+
+    test(
+      'places hijack-dns before scoped sniff rule when traffic sniffing is enabled',
+      () {
+        final config = converter.buildAndroidLibboxConfig(
+          profile,
+          routingOptions: const SingboxRoutingOptions(
+            enableTrafficSniffing: true,
+          ),
+        );
+        final route = config['route'] as Map<String, dynamic>;
+        final rules = route['rules'] as List<Map<String, dynamic>>;
+
+        final port53Idx = rules.indexWhere(
+          (r) =>
+              r['port'] is List &&
+              (r['port'] as List).contains(53) &&
+              r['action'] == 'hijack-dns',
+        );
+        final protocolDnsIdx = rules.indexWhere(
+          (r) => r['protocol'] == 'dns' && r['action'] == 'hijack-dns',
+        );
+        final sniffIdx = rules.indexWhere((r) => r['action'] == 'sniff');
+
+        expect(port53Idx, greaterThanOrEqualTo(0));
+        expect(protocolDnsIdx, greaterThanOrEqualTo(0));
+        expect(sniffIdx, greaterThan(port53Idx));
+        expect(sniffIdx, greaterThan(protocolDnsIdx));
+        expect(
+          rules[sniffIdx]['sniffer'],
+          equals(<String>['tls', 'http', 'quic']),
+        );
+        expect(rules[sniffIdx]['timeout'], equals('100ms'));
+      },
+    );
+
+    test(
+      'never emits detour:direct on dns-local or custom dns-direct servers',
+      () {
+        for (final directDns in const <String>[
+          '178.22.122.100',
+          '8.8.8.8',
+          '1.1.1.1',
+          '185.51.200.2',
+          '10.202.10.202',
+          '10.202.10.11',
+          'local',
+          'tls://dns.google',
+          'https://dns.google/dns-query',
+        ]) {
+          final config = converter.buildAndroidLibboxConfig(
+            profile,
+            routingOptions: SingboxRoutingOptions(
+              remoteDnsServer: '8.8.8.8',
+              directDnsServer: directDns,
+            ),
+          );
+          final dns = config['dns'] as Map<String, dynamic>;
+          final servers = dns['servers'] as List<Map<String, dynamic>>;
+          final remote = servers.firstWhere((s) => s['tag'] == 'dns-remote');
+          final local = servers.firstWhere((s) => s['tag'] == 'dns-local');
+          final direct = servers.firstWhere((s) => s['tag'] == 'dns-direct');
+
+          expect(remote['detour'], equals('proxy'), reason: directDns);
+          expect(local.containsKey('detour'), isFalse, reason: directDns);
+          expect(direct.containsKey('detour'), isFalse, reason: directDns);
+        }
+      },
+    );
   });
 }

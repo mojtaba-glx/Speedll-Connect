@@ -164,6 +164,11 @@ class SecureProfileStorage {
         if (dnsVersion < 2 && directDns == '8.8.8.8') {
           directDns = '178.22.122.100';
         }
+        // Migrate pre-v3 installs to default Sniffing OFF while preserving
+        // explicit user toggles once saved at dnsDefaultsVersion >= 3.
+        final enableSniffing = dnsVersion < 3
+            ? false
+            : (map['enableTrafficSniffing'] as bool? ?? false);
         return SingboxRoutingOptions(
           region: RoutingRegion.fromWireName(map['region'] as String?),
           bypassLan: map['bypassLan'] as bool? ?? true,
@@ -178,7 +183,7 @@ class SecureProfileStorage {
               const <String>[],
           remoteDnsServer: map['remoteDnsServer'] as String? ?? '1.1.1.1',
           directDnsServer: directDns,
-          enableTrafficSniffing: map['enableTrafficSniffing'] as bool? ?? true,
+          enableTrafficSniffing: enableSniffing,
           enableMux: map['enableMux'] as bool? ?? false,
           killSwitch: map['killSwitch'] as bool? ?? false,
         );
@@ -199,7 +204,7 @@ class SecureProfileStorage {
       'enableTrafficSniffing': options.enableTrafficSniffing,
       'enableMux': options.enableMux,
       'killSwitch': options.killSwitch,
-      'dnsDefaultsVersion': 2,
+      'dnsDefaultsVersion': 3,
     });
     await _storage.write(key: _routingOptionsKey, value: payload);
   }
