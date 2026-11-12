@@ -1,7 +1,7 @@
 name: speedll_connect_app
 description: Speedll Connect multiplatform VPN client UI and orchestration app.
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.7.1+13
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.6.1
+  flutter_secure_storage:
+    path: ../packages/flutter_secure_storage
   speedll_subscription:
     path: ../packages/speedll_subscription
 
