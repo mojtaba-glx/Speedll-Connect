@@ -9,19 +9,23 @@ class VlessParser implements SubscriptionParser {
 
   @override
   bool canParse(String content) {
-    return content.trim().toLowerCase().startsWith('vless://');
+    final trimmed = content.replaceAll('\uFEFF', '').trim();
+    return !trimmed.contains('\n') &&
+        !trimmed.contains('\r') &&
+        trimmed.toLowerCase().startsWith('vless://');
   }
 
   @override
   Future<ParseResult> parse(String content) async {
-    final trimmed = content.trim();
+    final trimmed = content.replaceAll('\uFEFF', '').trim();
     if (!canParse(trimmed)) {
       return ParseResult.failure('محتوای داده شده لینک معتبر VLESS نیست.');
     }
 
     try {
-      final uri = Uri.parse(trimmed);
-      final uuid = uri.userInfo;
+      final safeUri = SafeProxyUri.parse(trimmed);
+      final uri = safeUri.uri;
+      final uuid = Uri.decodeComponent(uri.userInfo);
       if (uuid.isEmpty) {
         return ParseResult.failure('شناسه کاربری (UUID) در لینک VLESS یافت نشد.');
       }
@@ -31,34 +35,60 @@ class VlessParser implements SubscriptionParser {
         return ParseResult.failure('آدرس سرور در لینک VLESS نامعتبر است.');
       }
 
-      final port = uri.hasPort ? uri.port : 443;
+      final port = uri.hasPort && uri.port > 0 ? uri.port : 443;
       final query = uri.queryParameters;
       final warnings = <String>[];
 
-      final security = query['security']?.toLowerCase() ?? 'none';
-      final transportType = (query['type'] ?? 'tcp').toLowerCase();
-      final flow = query['flow'];
-      final sni = query['sni'];
-      final pbk = query['pbk'];
-      final sid = query['sid'];
-      final fp = query['fp'] ?? 'chrome';
-      final serviceName = query['serviceName'];
-      final path = query['path'];
-      final hostHeader = query['host'];
+      final rawSecurity = _nonEmpty(query['security'])?.toLowerCase();
+      final pbk = _nonEmpty(query['pbk']);
+      final hasTlsFlag = query['tls'] == '1' ||
+          query['tls']?.toLowerCase() == 'true' ||
+          query['tls']?.toLowerCase() == 'tls';
+      final security = rawSecurity ??
+          ((pbk != null && pbk.isNotEmpty)
+              ? 'reality'
+              : (hasTlsFlag ? 'tls' : 'none'));
+      final rawType = _nonEmpty(query['type'])?.toLowerCase() ?? 'tcp';
+      final transportType = rawType == 'h2' ? 'http' : rawType;
+      final headerType = query['headerType']?.trim().toLowerCase();
+      final flow = _nonEmpty(query['flow']);
+      final sni = _nonEmpty(query['sni']) ?? _nonEmpty(query['peer']);
+      final sid = _nonEmpty(query['sid']);
+      final fp = _nonEmpty(query['fp']) ?? 'chrome';
+      final serviceName =
+          _nonEmpty(query['serviceName']) ?? _nonEmpty(query['service_name']);
+      final path = _nonEmpty(query['path']);
+      final hostHeader =
+          _nonEmpty(query['host']) ?? _nonEmpty(query['authority']);
+      final alpn = _nonEmpty(query['alpn']);
+      final packetEncoding = _nonEmpty(query['packetEncoding']) ??
+          _nonEmpty(query['packet_encoding']);
+      final allowInsecure = query['allowInsecure'] == '1' ||
+          query['allowInsecure']?.toLowerCase() == 'true' ||
+          query['insecure'] == '1' ||
+          query['insecure']?.toLowerCase() == 'true';
 
       if (security == 'reality' && (pbk == null || pbk.isEmpty)) {
         warnings.add('در کانفیگ Reality، کلید عمومی (pbk) یافت نشد.');
       }
 
-      // Profile Display Name: fragment or fallback
-      var displayName = uri.fragment.isNotEmpty
-          ? Uri.decodeComponent(uri.fragment)
-          : '$host:$port';
+      final displayName =
+          safeUri.fragment.isNotEmpty ? safeUri.fragment : '$host:$port';
+
+      final isInfoNode = SafeProxyUri.isInfoMetadataProfile(
+        host: host,
+        port: port,
+        displayName: displayName,
+        uuid: uuid,
+      );
 
       final extra = <String, dynamic>{
+        ...query,
         'uuid': uuid,
         'security': security,
         'transportType': transportType,
+        if (headerType != null && headerType.isNotEmpty)
+          'headerType': headerType,
         'flow': flow,
         'sni': sni,
         'pbk': pbk,
@@ -67,11 +97,15 @@ class VlessParser implements SubscriptionParser {
         if (serviceName != null) 'serviceName': serviceName,
         if (path != null) 'path': path,
         if (hostHeader != null) 'host': hostHeader,
-        ...query,
+        if (alpn != null) 'alpn': alpn,
+        if (packetEncoding != null) 'packetEncoding': packetEncoding,
+        if (allowInsecure) 'allowInsecure': true,
+        if (isInfoNode) 'isInfoNode': true,
       };
 
+      final uniqueSuffix = SafeProxyUri.stableHash(trimmed);
       final profile = ServerProfile(
-        id: 'vless_${host}_${port}_${uuid.substring(0, uuid.length > 8 ? 8 : uuid.length)}',
+        id: 'vless_${host}_${port}_$uniqueSuffix',
         displayName: displayName,
         protocol: 'vless',
         source: ProfileSource.subscription,
@@ -84,5 +118,11 @@ class VlessParser implements SubscriptionParser {
     } catch (e) {
       return ParseResult.failure('خطا در تحلیل لینک VLESS: $e');
     }
+  }
+
+  static String? _nonEmpty(String? value) {
+    if (value == null) return null;
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
   }
 }

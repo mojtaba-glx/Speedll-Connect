@@ -24,6 +24,10 @@ class ProfileValidator {
     'trojan',
     'shadowsocks',
     'hysteria2',
+    'hysteria',
+    'tuic',
+    'anytls',
+    'wireguard',
   ];
 
   ValidationResult validate(ServerProfile profile) {

@@ -130,6 +130,25 @@ hysteria2://user_pass@198.51.100.40:443#FR-1
       final b64Result = await detector.detectAndParse(encoded);
       expect(b64Result.isSuccess, isTrue);
       expect(b64Result.profiles.length, equals(2));
+
+      // Test all.txt style plain multiline starting directly with vless:// (no leading #)
+      // and containing multiple configs on the same host/port/UUID + emojis/brackets/pipes
+      const allTxtPayload = '''vless://00000000-0000-0000-0000-000000000001@127.0.0.1:1080?type=tcp&security=none#📊 حجم باقیمانده: 42 GB
+vless://00000000-0000-0000-0000-000000000001@198.51.100.10:443?type=ws&security=tls&host=cdn1.speedll-sample.test&path=%2Fws1#🇩🇪 آلمان ۱ | [VIP]
+vless://00000000-0000-0000-0000-000000000001@198.51.100.10:443?type=ws&security=tls&host=cdn2.speedll-sample.test&path=%2Fws2#🇩🇪 آلمان ۲ | [Direct]
+trojan://sanitized_pass@198.51.100.30:443?security=tls&type=grpc&serviceName=grpc1#🇫🇷 فرانسه ۱''';
+
+      final allTxtResult = await detector.detectAndParse(allTxtPayload);
+      expect(allTxtResult.isSuccess, isTrue);
+      expect(allTxtResult.profiles.length, equals(4));
+      // Verify unique IDs even when host/port/UUID are identical
+      final uniqueIds = allTxtResult.profiles.map((p) => p.id).toSet();
+      expect(uniqueIds.length, equals(4));
+      // Verify info node detection on 127.0.0.1
+      expect(allTxtResult.profiles[0].extraParams['isInfoNode'], isTrue);
+      expect(allTxtResult.profiles[1].extraParams['isInfoNode'], isNull);
+      expect(allTxtResult.profiles[1].displayName, equals('🇩🇪 آلمان ۱ | [VIP]'));
+      expect(allTxtResult.profiles[2].displayName, equals('🇩🇪 آلمان ۲ | [Direct]'));
     });
 
     test('SubscriptionDetector rejects oversized payload to prevent DoS', () async {
@@ -207,5 +226,232 @@ hysteria2://user_pass@198.51.100.40:443#FR-1
       expect(outbound['obfs']['type'], equals('salamander'));
       expect(outbound['obfs']['password'], equals('test_obfs_pass'));
     });
+
+    test('Generates routing rules bypassing private/LAN IPs and .ir domains', () {
+      const converter = SingboxConverter();
+      const profile = ServerProfile(
+        id: 'test-routing',
+        displayName: 'سرور تست مسیریابی',
+        protocol: 'vless',
+        source: ProfileSource.subscription,
+        serverAddress: '198.51.100.10',
+        serverPort: 443,
+        extraParams: {
+          'uuid': '00000000-0000-0000-0000-000000000001',
+          'security': 'reality',
+          'pbk': '1111111111111111111111111111111111111111111=',
+        },
+      );
+
+      final fullConfig = converter.buildFullConfig(
+        profile,
+        routingOptions: const SingboxRoutingOptions(
+          bypassLan: true,
+          bypassIranDomains: true,
+          customDirectDomains: ['bank.test.ir'],
+          customDirectCidrs: ['185.143.232.0/22'],
+        ),
+      );
+
+      final route = fullConfig['route'] as Map<String, dynamic>;
+      final rules = route['rules'] as List<Map<String, dynamic>>;
+
+      expect(route['final'], equals('proxy'));
+      expect(route['default_domain_resolver'], equals('dns-direct'));
+      expect(
+        rules.any((r) => r['action'] == 'sniff'),
+        isTrue,
+      );
+      expect(
+        rules.any((r) => r['inbound'] == 'dns-in' && r['action'] == 'hijack-dns'),
+        isTrue,
+      );
+      expect(
+        rules.any((r) => r['protocol'] == 'dns' && r['action'] == 'hijack-dns'),
+        isTrue,
+      );
+      expect(
+        rules.any((r) => r['ip_is_private'] == true && r['outbound'] == 'direct'),
+        isTrue,
+      );
+      expect(
+        rules.any((r) =>
+            r['domain_suffix'] is List &&
+            (r['domain_suffix'] as List).contains('.ir') &&
+            r['outbound'] == 'direct'),
+        isTrue,
+      );
+      expect(
+        rules.any((r) =>
+            r['ip_cidr'] is List &&
+            (r['ip_cidr'] as List).contains('192.168.0.0/16') &&
+            r['outbound'] == 'direct'),
+        isTrue,
+      );
+
+      final dns = fullConfig['dns'] as Map<String, dynamic>;
+      final dnsRules = dns['rules'] as List<Map<String, dynamic>>;
+      expect(dns['final'], equals('dns-remote'));
+      expect(
+        dnsRules.first['server'],
+        equals('dns-direct'),
+      );
+      expect(
+        (dnsRules.first['domain_suffix'] as List).contains('.ir'),
+        isTrue,
+      );
+    });
+
+    test('Generates valid VLESS WS direct config with early data (?ed=2048) and TCP HTTP transport', () async {
+      const parser = VlessParser();
+      const converter = SingboxConverter();
+
+      const wsUri =
+          'vless://00000000-0000-0000-0000-000000000001@198.51.100.10:80?encryption=none&security=none&type=ws&host=cdn.speedll-sample.test&path=%2Fws%3Fed%3D2048#DE-HTTP-WS-Direct';
+      final wsParsed = await parser.parse(wsUri);
+      expect(wsParsed.isSuccess, isTrue);
+
+      final wsOutbound = converter.buildOutbound(wsParsed.profiles.first);
+      expect(wsOutbound['type'], equals('vless'));
+      expect(wsOutbound['server_port'], equals(80));
+      expect(wsOutbound.containsKey('tls'), isFalse);
+      final wsTransport = wsOutbound['transport'] as Map<String, dynamic>;
+      expect(wsTransport['type'], equals('ws'));
+      expect(wsTransport['path'], equals('/ws'));
+      expect(wsTransport['headers'], equals({'Host': 'cdn.speedll-sample.test'}));
+      expect(wsTransport['max_early_data'], equals(2048));
+      expect(wsTransport['early_data_header_name'], equals('Sec-WebSocket-Protocol'));
+
+      const tcpHttpUri =
+          'vless://00000000-0000-0000-0000-000000000001@198.51.100.10:8080?encryption=none&security=none&type=tcp&headerType=http&host=speedtest.sample.test&path=%2F#DE-TCP-HTTP';
+      final tcpHttpParsed = await parser.parse(tcpHttpUri);
+      expect(tcpHttpParsed.isSuccess, isTrue);
+
+      final tcpHttpOutbound = converter.buildOutbound(tcpHttpParsed.profiles.first);
+      final httpTransport = tcpHttpOutbound['transport'] as Map<String, dynamic>;
+      expect(httpTransport['type'], equals('http'));
+      expect(httpTransport['path'], equals('/'));
+      expect(httpTransport['host'], equals(['speedtest.sample.test']));
+    });
   });
+
+  group('SubscriptionUpdater SSRF, Offline, Validation & Periodic Tests', () {
+    test('Blocks SSRF URLs (HTTP, localhost, private IPs, link-local metadata)', () async {
+      final updater = SubscriptionUpdater();
+
+      final httpResult =
+          await updater.fetchAndValidate('http://sub.speedll-sample.test/api');
+      expect(httpResult.isSuccess, isFalse);
+      expect(httpResult.errorMessage, contains('HTTPS'));
+
+      final localhostResult =
+          await updater.fetchAndValidate('https://localhost:8080/sub');
+      expect(localhostResult.isSuccess, isFalse);
+      expect(localhostResult.errorMessage, contains('SSRF'));
+
+      final privateIpResult =
+          await updater.fetchAndValidate('https://192.168.1.1/sub');
+      expect(privateIpResult.isSuccess, isFalse);
+      expect(privateIpResult.errorMessage, contains('SSRF'));
+
+      final metadataResult =
+          await updater.fetchAndValidate('https://169.254.169.254/latest/meta-data');
+      expect(metadataResult.isSuccess, isFalse);
+      expect(metadataResult.errorMessage, contains('SSRF'));
+    });
+
+    test('Handles network disconnection gracefully without throwing', () async {
+      final updater = SubscriptionUpdater(
+        httpClient: _FakeHttpClient((uri) async {
+          throw const SocketException('Network is unreachable');
+        }),
+      );
+
+      final result = await updater
+          .fetchAndValidate('https://sub.speedll-sample.test/sub?token=secret123');
+      expect(result.isSuccess, isFalse);
+      expect(result.isOfflineError, isTrue);
+      expect(result.errorMessage, contains('پروفایل‌های قبلی حفظ شدند'));
+      expect(result.errorMessage, isNot(contains('secret123')));
+    });
+
+    test('Rejects HTML captive portal / corrupted server responses and redacts token', () async {
+      final updater = SubscriptionUpdater(
+        httpClient: _FakeHttpClient((uri) async {
+          return const SubscriptionHttpResponse(
+            statusCode: 200,
+            body: '<!DOCTYPE html><html><body>Login Required</body></html>',
+          );
+        }),
+      );
+
+      final result = await updater
+          .fetchAndValidate('https://sub.speedll-sample.test/sub?token=secret123');
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('HTML'));
+    });
+
+    test('Blocks malicious redirect to private IP (SSRF via redirect)', () async {
+      final updater = SubscriptionUpdater(
+        httpClient: _FakeHttpClient((uri) async {
+          return const SubscriptionHttpResponse(
+            statusCode: 302,
+            body: '',
+            redirectLocation: 'https://10.0.0.1/internal-secret',
+          );
+        }),
+      );
+
+      final result =
+          await updater.fetchAndValidate('https://sub.speedll-sample.test/sub');
+      expect(result.isSuccess, isFalse);
+      expect(result.errorMessage, contains('تغییر مسیر ناامن مسدود شد'));
+    });
+
+    test('Parses valid subscription response and runs periodic refresh cycle', () async {
+      const validPayload =
+          'vless://00000000-0000-0000-0000-000000000001@198.51.100.10:443?type=tcp&security=reality&pbk=1111111111111111111111111111111111111111111=&fp=chrome#DE-Updated';
+      final encoded = base64Encode(utf8.encode(validPayload));
+
+      final updater = SubscriptionUpdater(
+        httpClient: _FakeHttpClient((uri) async {
+          return SubscriptionHttpResponse(
+            statusCode: 200,
+            body: encoded,
+          );
+        }),
+      );
+
+      final updatedUrls = <String>[];
+      final updatedProfiles = <ServerProfile>[];
+
+      await updater.runRefreshCycle(
+        getSubscriptionUrls: () => ['https://sub.speedll-sample.test/v1/sub'],
+        onUpdateResult: (url, result) {
+          if (result.isSuccess) {
+            updatedUrls.add(url);
+            updatedProfiles.addAll(result.profiles);
+          }
+        },
+      );
+
+      expect(updatedUrls.length, equals(1));
+      expect(updatedProfiles.length, equals(1));
+      expect(updatedProfiles.first.displayName, equals('DE-Updated'));
+    });
+  });
+}
+
+class _FakeHttpClient implements SubscriptionHttpClient {
+  const _FakeHttpClient(this._handler);
+  final Future<SubscriptionHttpResponse> Function(Uri uri) _handler;
+
+  @override
+  Future<SubscriptionHttpResponse> get(
+    Uri uri, {
+    required Duration timeout,
+    required int maxBytes,
+  }) {
+    return _handler(uri);
+  }
 }

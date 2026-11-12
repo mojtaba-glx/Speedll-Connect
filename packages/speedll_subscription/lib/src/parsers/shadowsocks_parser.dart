@@ -10,39 +10,44 @@ class ShadowsocksParser implements SubscriptionParser {
 
   @override
   bool canParse(String content) {
-    return content.trim().toLowerCase().startsWith('ss://');
+    final trimmed = content.replaceAll('\uFEFF', '').trim();
+    return !trimmed.contains('\n') &&
+        !trimmed.contains('\r') &&
+        trimmed.toLowerCase().startsWith('ss://');
   }
 
   @override
   Future<ParseResult> parse(String content) async {
-    final trimmed = content.trim();
+    final trimmed = content.replaceAll('\uFEFF', '').trim();
     if (!canParse(trimmed)) {
       return ParseResult.failure('محتوای داده شده لینک معتبر Shadowsocks نیست.');
     }
 
     try {
-      final uri = Uri.parse(trimmed);
+      final safeUri = SafeProxyUri.parse(trimmed);
+      final uri = safeUri.uri;
       final rawUserInfo = uri.userInfo;
       var host = uri.host;
-      var port = uri.hasPort ? uri.port : 8388;
-      var displayName = uri.fragment.isNotEmpty
-          ? Uri.decodeComponent(uri.fragment)
-          : '$host:$port';
+      var port = uri.hasPort && uri.port > 0 ? uri.port : 8388;
 
       String method = 'aes-256-gcm';
       String password = '';
 
       if (rawUserInfo.isNotEmpty) {
-        // May be base64 encoded user info (SIP002 format)
+        final percentDecoded = Uri.decodeComponent(rawUserInfo);
         String decodedUserInfo;
-        try {
-          var padded = rawUserInfo.replaceAll('-', '+').replaceAll('_', '/');
-          while (padded.length % 4 != 0) {
-            padded += '=';
+        if (percentDecoded.contains(':')) {
+          decodedUserInfo = percentDecoded;
+        } else {
+          try {
+            var padded = percentDecoded.replaceAll('-', '+').replaceAll('_', '/');
+            while (padded.length % 4 != 0) {
+              padded += '=';
+            }
+            decodedUserInfo = utf8.decode(base64Decode(padded));
+          } catch (_) {
+            decodedUserInfo = percentDecoded;
           }
-          decodedUserInfo = utf8.decode(base64Decode(padded));
-        } catch (_) {
-          decodedUserInfo = rawUserInfo;
         }
 
         if (decodedUserInfo.contains(':')) {
@@ -53,7 +58,7 @@ class ShadowsocksParser implements SubscriptionParser {
           password = decodedUserInfo;
         }
       } else {
-        // Old legacy format: ss://BASE64(method:password@host:port)#name
+        // Legacy format: ss://BASE64(method:password@host:port)#name
         final rawBody = trimmed.substring(5).split('#').first;
         try {
           var padded = rawBody.replaceAll('-', '+').replaceAll('_', '/');
@@ -76,7 +81,9 @@ class ShadowsocksParser implements SubscriptionParser {
             }
           }
         } catch (_) {
-          return ParseResult.failure('ساختار لینک Shadowsocks قابل رمزگشایی نیست.');
+          return ParseResult.failure(
+            'ساختار لینک Shadowsocks قابل رمزگشایی نیست.',
+          );
         }
       }
 
@@ -84,14 +91,33 @@ class ShadowsocksParser implements SubscriptionParser {
         return ParseResult.failure('آدرس سرور Shadowsocks یافت نشد.');
       }
 
+      final displayName =
+          safeUri.fragment.isNotEmpty ? safeUri.fragment : '$host:$port';
+
+      final isInfoNode = SafeProxyUri.isInfoMetadataProfile(
+        host: host,
+        port: port,
+        displayName: displayName,
+      );
+
+      final uot = uri.queryParameters['uot'] == '1' ||
+          uri.queryParameters['uot']?.toLowerCase() == 'true' ||
+          uri.queryParameters['udp_over_tcp'] == '1' ||
+          uri.queryParameters['udp_over_tcp']?.toLowerCase() == 'true';
+
       final extra = <String, dynamic>{
         'method': method,
         'password': password,
         'plugin': uri.queryParameters['plugin'],
+        if (uri.queryParameters['plugin-opts'] != null)
+          'pluginOpts': uri.queryParameters['plugin-opts'],
+        if (uot) 'udpOverTcp': true,
+        if (isInfoNode) 'isInfoNode': true,
       };
 
+      final uniqueSuffix = SafeProxyUri.stableHash(trimmed);
       final profile = ServerProfile(
-        id: 'ss_${host}_${port}_${password.hashCode.abs()}',
+        id: 'ss_${host}_${port}_$uniqueSuffix',
         displayName: displayName,
         protocol: 'shadowsocks',
         source: ProfileSource.subscription,
