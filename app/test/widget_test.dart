@@ -6,7 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:speedll_connect_app/main.dart';
 import 'package:speedll_connect_app/application/connection/connection_controller.dart';
+import 'package:speedll_connect_app/application/localization/locale_controller.dart';
 import 'package:speedll_connect_app/data/storage/secure_profile_storage.dart';
+import 'package:speedll_connect_app/presentation/home/widgets/language_onboarding_dialog.dart';
+import 'package:speedll_connect_app/presentation/home/widgets/theme_onboarding_dialog.dart';
 import 'package:speedll_connect_app/domain/diagnostics/diagnostic_error_mapper.dart';
 import 'package:speedll_connect_app/domain/engine/connection_engine.dart';
 import 'package:speedll_connect_app/domain/engine/windows_vpn_engine_adapter.dart';
@@ -376,5 +379,194 @@ void main() {
     state = container.read(connectionControllerProvider);
     expect(state.activeProfile?.id, equals('srv-2'));
     expect(state.isSmartLocked, isTrue);
+  });
+
+  test(
+      'SecureProfileStorage defaults enableTrafficSniffing to false and migrates v2 installs',
+      () async {
+    const rawStorage = FlutterSecureStorage();
+    const profileStorage = SecureProfileStorage(secureStorage: rawStorage);
+
+    // Fresh install defaults to OFF
+    final fresh = await profileStorage.loadRoutingOptions();
+    expect(fresh.enableTrafficSniffing, isFalse);
+
+    // Upgrade from dnsDefaultsVersion < 3 with sniffing=true migrates to OFF
+    await rawStorage.write(
+      key: 'speedll_routing_options_v1',
+      value: jsonEncode(<String, dynamic>{
+        'dnsDefaultsVersion': 2,
+        'enableTrafficSniffing': true,
+        'remoteDnsServer': '1.1.1.1',
+        'directDnsServer': '8.8.8.8',
+      }),
+    );
+    final migrated = await profileStorage.loadRoutingOptions();
+    expect(migrated.enableTrafficSniffing, isFalse);
+    expect(migrated.directDnsServer, equals('8.8.8.8'));
+
+    // Explicit opt-in saved at v3+ persists ON
+    await profileStorage.saveRoutingOptions(
+      migrated.copyWith(enableTrafficSniffing: true),
+    );
+    final saved = await profileStorage.loadRoutingOptions();
+    expect(saved.enableTrafficSniffing, isTrue);
+  });
+
+  testWidgets(
+      'Home screen hides live ping and server IP until VPN is connected',
+      (tester) async {
+    const storage = SecureProfileStorage();
+    const profile = ServerProfile(
+      id: 'srv-ip-1',
+      displayName: 'Germany-01',
+      protocol: 'vless',
+      source: ProfileSource.manual,
+      serverAddress: '198.51.100.42',
+      serverPort: 443,
+      extraParams: <String, dynamic>{
+        'uuid': '00000000-0000-0000-0000-000000000001',
+      },
+    );
+    await storage.saveProfiles(const <ServerProfile>[profile]);
+    await storage.saveActiveProfileId(profile.id);
+    await storage.saveAppLanguageCode('fa');
+    await storage.saveHasCompletedLanguageOnboarding(true);
+
+    final mockEngine = MockConnectionEngine();
+    final pingService = PingService(customProber: (_) async => 88);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          connectionEngineProvider.overrideWithValue(mockEngine),
+          pingServiceProvider.overrideWithValue(pingService),
+        ],
+        child: const SpeedllConnectApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Disconnected: server IP and live ping must be hidden
+    expect(find.text('قطع شده'), findsOneWidget);
+    expect(find.text('198.51.100.42'), findsNothing);
+    expect(find.textContaining('پینگ لحظه‌ای'), findsNothing);
+
+    // Connect: server IP and live ping become visible
+    await tester.tap(find.byIcon(Icons.power_settings_new_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('متصل شد'), findsOneWidget);
+    expect(find.text('198.51.100.42'), findsOneWidget);
+    expect(find.textContaining('پینگ لحظه‌ای'), findsOneWidget);
+
+    // Disconnect again: hidden once more
+    await tester.tap(find.byIcon(Icons.power_settings_new_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('198.51.100.42'), findsNothing);
+    expect(find.textContaining('پینگ لحظه‌ای'), findsNothing);
+  });
+
+  testWidgets(
+      'First launch opens Language onboarding then Theme onboarding dialog',
+      (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          connectionEngineProvider.overrideWithValue(MockConnectionEngine()),
+          localeControllerProvider.overrideWith(
+            (ref) => LocaleController(
+              storage: ref.watch(secureProfileStorageProvider),
+              isTestOverride: false,
+            ),
+          ),
+        ],
+        child: const SpeedllConnectApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LanguageOnboardingDialog), findsOneWidget);
+    expect(find.byType(ThemeOnboardingDialog), findsNothing);
+
+    // Choose English and confirm
+    await tester.tap(find.text('English'));
+    await tester.pump();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(LanguageOnboardingDialog),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Theme onboarding opens next in the chosen English language
+    expect(find.byType(LanguageOnboardingDialog), findsNothing);
+    expect(find.byType(ThemeOnboardingDialog), findsOneWidget);
+    expect(find.text('Choose Default Theme'), findsOneWidget);
+
+    // Pick Ocean Blue and confirm
+    await tester.tap(find.text('Ocean Blue'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ThemeOnboardingDialog),
+        matching: find.byType(FilledButton),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ThemeOnboardingDialog), findsNothing);
+    expect(await const SecureProfileStorage().loadThemePresetName(),
+        equals('oceanBlue'));
+  });
+
+  testWidgets('Manual DNS input validates bad inputs and saves valid ones',
+      (tester) async {
+    const storage = SecureProfileStorage();
+    await storage.saveAppLanguageCode('fa');
+    await storage.saveHasCompletedLanguageOnboarding(true);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          connectionEngineProvider.overrideWithValue(MockConnectionEngine()),
+        ],
+        child: const SpeedllConnectApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Switch to Settings tab
+    await tester.tap(find.byIcon(Icons.settings_rounded));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('سرور DNS مستقیم (Direct DNS)'),
+      250,
+    );
+    await tester.tap(find.text('سرور DNS مستقیم (Direct DNS)'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('DNS دستی'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), '999.999.999.999');
+    await tester.tap(find.text('انتخاب'));
+    await tester.pump();
+
+    // Invalid input shows error and keeps dialog open
+    expect(
+      find.text('آدرس DNS معتبر نیست؛ یک IP معتبر وارد کنید.'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(find.byType(TextField), '8.8.8.8');
+    await tester.tap(find.text('انتخاب'));
+    await tester.pumpAndSettle();
+
+    final savedRouting = await storage.loadRoutingOptions();
+    expect(savedRouting.directDnsServer, equals('8.8.8.8'));
   });
 }

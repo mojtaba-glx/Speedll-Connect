@@ -309,4 +309,11 @@ class AppStrings {
       isFa ? 'تایید و ورود به برنامه' : 'Confirm & Continue';
   String get detectedFromDeviceBadge =>
       isFa ? 'تشخیص از زبان گوشی' : 'Detected from device';
+
+  // First-Launch Theme Onboarding Dialog
+  String get themeOnboardingTitle =>
+      isFa ? 'انتخاب تم پیش‌فرض برنامه' : 'Choose Default Theme';
+  String get themeOnboardingSubtitle => isFa
+      ? 'تم و رنگ‌بندی پیش‌فرض برنامه را انتخاب کنید (هر زمان از بخش تنظیمات قابل تغییر است):'
+      : 'Choose your default app theme palette (you can change it anytime in Settings):';
 }

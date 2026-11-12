@@ -16,6 +16,7 @@ import 'widgets/select_server_dialog.dart';
 import 'widgets/settings_panel.dart';
 import 'widgets/statistics_panel.dart';
 import 'widgets/subscription_usage_card.dart';
+import 'widgets/theme_onboarding_dialog.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -40,13 +41,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         localeState.needsOnboarding &&
         !_onboardingDialogShown) {
       _onboardingDialogShown = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (!mounted) return;
-        showDialog(
+        final confirmedLanguage = await showDialog<bool>(
           context: context,
           barrierDismissible: false,
           builder: (_) => const LanguageOnboardingDialog(),
         );
+        if (confirmedLanguage == true && mounted) {
+          await showDialog<void>(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const ThemeOnboardingDialog(),
+          );
+        }
       });
     }
   }
@@ -357,9 +365,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     const SizedBox(height: 8),
                     InkWell(
                       borderRadius: BorderRadius.circular(12),
-                      onTap: () => ref
-                          .read(connectionControllerProvider.notifier)
-                          .pingActiveProfile(),
+                      onTap: isConnected
+                          ? () => ref
+                              .read(connectionControllerProvider.notifier)
+                              .pingActiveProfile()
+                          : null,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -385,7 +395,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                     ),
                                   ),
                                 ),
-                                if (PingService.resolveServerIpSync(activeProfile) != null) ...[
+                                if (isConnected &&
+                                    PingService.resolveServerIpSync(activeProfile) != null) ...[
                                   const SizedBox(width: 5),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
@@ -416,26 +427,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(width: 8),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SignalBarsIndicator(
-                                pingMs: connectionState.livePingMs,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${strings.livePingLabel}: ${strings.pingMsValue(connectionState.livePingMs)}',
-                                style: TextStyle(
-                                  color: isConnected
-                                      ? palette.secondaryAccent
-                                      : palette.textPrimary.withOpacity(0.85),
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 11.5,
+                          if (isConnected) ...[
+                            const SizedBox(width: 8),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SignalBarsIndicator(
+                                  pingMs: connectionState.livePingMs,
                                 ),
-                              ),
-                            ],
-                          ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  '${strings.livePingLabel}: ${strings.pingMsValue(connectionState.livePingMs)}',
+                                  style: TextStyle(
+                                    color: palette.secondaryAccent,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 11.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

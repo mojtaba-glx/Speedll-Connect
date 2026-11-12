@@ -37,6 +37,18 @@ enum SpeedllThemePreset {
         isFa ? 'لایت / روشن' : 'Clean Light',
     };
   }
+
+  /// Accent swatch color representing this preset in pickers and onboarding.
+  Color get previewColor {
+    return switch (this) {
+      SpeedllThemePreset.royalPurple => const Color(0xFF8B5CF6),
+      SpeedllThemePreset.midnightDark => const Color(0xFF334155),
+      SpeedllThemePreset.cyberCyan => const Color(0xFF06B6D4),
+      SpeedllThemePreset.emeraldGreen => const Color(0xFF10B981),
+      SpeedllThemePreset.oceanBlue => const Color(0xFF3B82F6),
+      SpeedllThemePreset.cleanLight => const Color(0xFFF1F5F9),
+    };
+  }
 }
 
 class SpeedllThemePalette {

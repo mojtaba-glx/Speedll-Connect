@@ -95,7 +95,7 @@ class _LanguageOnboardingDialogState
                     .read(localeControllerProvider.notifier)
                     .completeOnboarding(_selected);
                 if (context.mounted) {
-                  Navigator.of(context).pop();
+                  Navigator.of(context).pop(true);
                 }
               },
               child: Text(

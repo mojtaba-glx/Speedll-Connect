@@ -362,7 +362,7 @@ class SettingsPanel extends ConsumerWidget {
                   height: 20,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _presetPreviewColor(preset),
+                    color: preset.previewColor,
                     border: Border.all(color: Colors.white, width: 2),
                   ),
                 ),
@@ -387,17 +387,6 @@ class SettingsPanel extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Color _presetPreviewColor(SpeedllThemePreset preset) {
-    return switch (preset) {
-      SpeedllThemePreset.royalPurple => const Color(0xFF8B5CF6),
-      SpeedllThemePreset.midnightDark => const Color(0xFF334155),
-      SpeedllThemePreset.cyberCyan => const Color(0xFF06B6D4),
-      SpeedllThemePreset.emeraldGreen => const Color(0xFF10B981),
-      SpeedllThemePreset.oceanBlue => const Color(0xFF3B82F6),
-      SpeedllThemePreset.cleanLight => const Color(0xFFF1F5F9),
-    };
   }
 
   void _showLanguageDialog(
@@ -574,34 +563,50 @@ class SettingsPanel extends ConsumerWidget {
     SingboxRoutingOptions routing,
   ) {
     final controller = TextEditingController(text: currentDns);
+    String? errorText;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: palette.dialogBackground,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Text(strings.manualDnsTitle, style: TextStyle(color: palette.textPrimary)),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: '1.1.1.1',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: palette.dialogBackground,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          title: Text(strings.manualDnsTitle, style: TextStyle(color: palette.textPrimary)),
+          content: TextField(
+            controller: controller,
+            textDirection: TextDirection.ltr,
+            style: TextStyle(color: palette.textPrimary),
+            decoration: InputDecoration(
+              hintText: '1.1.1.1 / tls://dns.google',
+              errorText: errorText,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onChanged: (_) {
+              if (errorText != null) {
+                setDialogState(() => errorText = null);
+              }
+            },
           ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(strings.cancelAction)),
-          ElevatedButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isNotEmpty) {
+          actions: [
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(strings.cancelAction)),
+            ElevatedButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (!SingboxConverter.isValidDnsServer(text)) {
+                  setDialogState(() => errorText = strings.manualDnsInvalid);
+                  return;
+                }
                 ref.read(connectionControllerProvider.notifier).updateRoutingOptions(
                       isRemote ? routing.copyWith(remoteDnsServer: text) : routing.copyWith(directDnsServer: text),
                     );
-              }
-              Navigator.of(ctx).pop();
-            },
-            child: Text(strings.selectAction),
-          ),
-        ],
+                Navigator.of(ctx).pop();
+                ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                  SnackBar(content: Text(strings.manualDnsSaved)),
+                );
+              },
+              child: Text(strings.selectAction),
+            ),
+          ],
+        ),
       ),
     );
   }
