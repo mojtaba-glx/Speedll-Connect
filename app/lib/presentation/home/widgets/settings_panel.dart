@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -286,6 +288,26 @@ class SettingsPanel extends ConsumerWidget {
                   await ref.read(connectionControllerProvider.notifier).openSystemVpnSettings();
                 },
               ),
+              _BatteryOptimizationTile(
+                palette: palette,
+                strings: strings,
+              ),
+              if (Platform.isAndroid ||
+                  Platform.environment.containsKey('FLUTTER_TEST'))
+                _SettingsTile(
+                  icon: Icons.tune_rounded,
+                  iconColor: const Color(0xFF8B5CF6),
+                  iconBg: const Color(0xFF8B5CF6).withOpacity(0.14),
+                  title: strings.quickSettingsTileTitle,
+                  subtitle: strings.quickSettingsTileSubtitle,
+                  palette: palette,
+                  onTap: () => _handleAddQuickSettingsTile(
+                    context,
+                    ref,
+                    palette,
+                    strings,
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 18),
@@ -351,6 +373,70 @@ class SettingsPanel extends ConsumerWidget {
   }
 
   // --- Dialogs ---
+
+  Future<void> _handleAddQuickSettingsTile(
+    BuildContext context,
+    WidgetRef ref,
+    SpeedllThemePalette palette,
+    AppStrings strings,
+  ) async {
+    final result = await ref
+        .read(connectionControllerProvider.notifier)
+        .requestAddQuickSettingsTile();
+    if (!context.mounted) return;
+    if (result == 'added' || result == 'already_added' || result == 'denied') {
+      final msg = switch (result) {
+        'added' => strings.quickSettingsTileAddedToast,
+        'already_added' => strings.quickSettingsTileAlreadyAddedToast,
+        _ => strings.quickSettingsTileDeniedToast,
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor:
+              result == 'denied' ? const Color(0xFFD97706) : const Color(0xFF16A34A),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: palette.dialogBackground,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: Row(
+          children: [
+            Icon(Icons.tune_rounded, color: palette.secondaryAccent, size: 22),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                strings.quickSettingsTileManualGuideTitle,
+                style: TextStyle(color: palette.textPrimary, fontSize: 16),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          strings.quickSettingsTileManualGuideBody,
+          style: TextStyle(
+            color: palette.textPrimary.withOpacity(0.86),
+            fontSize: 13.5,
+            height: 1.55,
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            style: FilledButton.styleFrom(
+              backgroundColor: palette.secondaryAccent,
+            ),
+            child: Text(strings.quickSettingsGotItButton),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showThemeDialog(
     BuildContext context,
@@ -928,6 +1014,79 @@ class _SettingsTile extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _BatteryOptimizationTile extends ConsumerStatefulWidget {
+  const _BatteryOptimizationTile({
+    required this.palette,
+    required this.strings,
+  });
+
+  final SpeedllThemePalette palette;
+  final AppStrings strings;
+
+  @override
+  ConsumerState<_BatteryOptimizationTile> createState() =>
+      _BatteryOptimizationTileState();
+}
+
+class _BatteryOptimizationTileState
+    extends ConsumerState<_BatteryOptimizationTile> {
+  bool? _isUnrestricted;
+  AppLifecycleListener? _lifecycleListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshStatus();
+    _lifecycleListener = AppLifecycleListener(
+      onResume: _refreshStatus,
+    );
+  }
+
+  Future<void> _refreshStatus() async {
+    final unrestricted = await ref
+        .read(connectionControllerProvider.notifier)
+        .isIgnoringBatteryOptimizations();
+    if (mounted) {
+      setState(() => _isUnrestricted = unrestricted);
+    }
+  }
+
+  @override
+  void dispose() {
+    _lifecycleListener?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final badgeText = _isUnrestricted == null
+        ? '...'
+        : (_isUnrestricted!
+            ? widget.strings.batteryUnrestrictedBadge
+            : widget.strings.batteryRestrictedBadge);
+
+    return _SettingsTile(
+      icon: Icons.battery_saver_rounded,
+      iconColor: _isUnrestricted == true
+          ? const Color(0xFF10B981)
+          : const Color(0xFFF59E0B),
+      iconBg: (_isUnrestricted == true
+              ? const Color(0xFF10B981)
+              : const Color(0xFFF59E0B))
+          .withOpacity(0.14),
+      title: widget.strings.batteryOptimizationTitle,
+      subtitle: widget.strings.batteryOptimizationSubtitle,
+      trailingValue: badgeText,
+      palette: widget.palette,
+      onTap: () async {
+        await ref
+            .read(connectionControllerProvider.notifier)
+            .openBatteryOptimizationSettings();
+      },
     );
   }
 }

@@ -2,6 +2,39 @@
 
 All notable changes to Speedll Connect will be documented here.
 
+## [1.10.2] - 2026-11-13
+
+- **Android Quick Settings Tile (`SpeedllTileService`):**
+  - Added Android Quick Settings Tile (API 24+) so users can toggle VPN directly from the notification/status bar shade next to Wi-Fi and Mobile Data (`ic_qs_speedll`, `BIND_QUICK_SETTINGS_TILE`), with long-press opening Speedll Connect (`QS_TILE_PREFERENCES`).
+  - Persisted active tunnel configuration into hardware-encrypted `SpeedllQuickTileState` so one-tap connect works even when the app UI is closed, with a clean Android 12–15/MIUI `ForegroundServiceStartNotAllowedException` fallback that opens `MainActivity` and triggers connection automatically (`event:quick_tile_connect`).
+  - Added one-tap Android 13+ (`StatusBarManager.requestAddTileService`) shortcut & manual guide dialog inside **SettingsPanel**.
+- **Permissions, Data Extraction & Security Audit:**
+  - Added explicit Android 12+ `res/xml/data_extraction_rules.xml` (`android:dataExtractionRules`) alongside `allowBackup="false"`, protected `SpeedllTileService` strictly with `android.permission.BIND_QUICK_SETTINGS_TILE`, fixed `QrScannerActivity` camera permission denial re-prompt loop, and verified zero intrusive permissions (`QUERY_ALL_PACKAGES`, storage, location, or `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) with 4096-bit RSA APK Signature Scheme v2/v3 across `arm64-v8a` and `armeabi-v7a`.
+
+## [1.10.1] - 2026-11-13
+
+- **Single-Instance App Task & State Sync Fix (No Duplicate Recent Cards):**
+  - Switched `MainActivity` in `AndroidManifest.xml` from `launchMode="singleTop"` + empty `taskAffinity=""` to `launchMode="singleTask"`, removed the empty `taskAffinity` override so it shares the application task affinity, and added `documentLaunchMode="never"` + `alwaysRetainTaskState="true"` to prevent Android/MIUI from spawning two simultaneous `Speedll Connect` tasks in Recent Apps.
+  - Updated `LibboxVpnService.buildNotification` to construct an explicit `MainActivity` `ACTION_MAIN` / `CATEGORY_LAUNCHER` `PendingIntent` with `FLAG_ACTIVITY_NEW_TASK | FLAG_ACTIVITY_CLEAR_TOP | FLAG_ACTIVITY_SINGLE_TOP`.
+  - Guarded `LibboxVpnService.statusCallback` ownership in `MainActivity` against stale activity teardown races, handled `onNewIntent`, and tracked tunnel start uptime + session byte baseline (`getNativeTunnelState` / `syncWithNativeState`) so Activity recreations stay in sync with the running VPN service.
+
+## [1.10.0] - 2026-11-13
+
+- **Wi-Fi Roaming / Screen-Off Disconnect & Battery Optimization Fixes:**
+  - Replaced indefinite `PowerManager.PARTIAL_WAKE_LOCK` in `LibboxVpnService` with bounded transition wake locks (`TRANSITION_WAKE_LOCK_MS` / `NETWORK_WAKE_LOCK_MS`) released cleanly in `finally` blocks so the CPU can enter deep sleep when screen is off while still surviving Wi-Fi wake/roaming transitions.
+  - Gated `WifiManager.WIFI_MODE_FULL_LOW_LATENCY` (API 29+, `WIFI_MODE_FULL_HIGH_PERF` on older APIs) strictly to `isRunning && !stopping && DefaultNetworkMonitor.isWifiActive && !isDeviceIdle` via `syncWifiLock()`.
+  - Increased default Android TCP keepalive intervals (`tcp_keep_alive: 75s`, `tcp_keep_alive_interval: 20s`) to reduce cellular/Wi-Fi radio wakeups without dropping NAT bindings.
+  - Exposed **Android Battery Optimization** status/settings shortcut in `SettingsPanel`.
+- **Auto-Connect Newly Imported Subscriptions & Configs:**
+  - Added `ConnectionController.activateAndConnectImportedProfiles` so adding any new subscription link or config (clipboard/manual/QR) automatically selects it (or fastest server inside the new subscription in Smart Mode) and immediately initiates or hot-switches the VPN connection.
+- **Subscription & Config Copy, QR Code & System Share:**
+  - Added `ProxyUriSerializer` supporting all 9 proxy protocols (`vless`, `vmess`, `trojan`, `ss`, `hysteria2`, `hysteria`, `tuic`, `anytls`, `wireguard`) with IPv6 authority brackets and Unicode remark round-tripping.
+  - Added offline native ZXing QR matrix generation + `Intent.ACTION_SEND` chooser (`MainActivity` `app.speedll.connect/share`), `ShareAndQrService`, `QrShareDialog`, and Copy + QR/Share actions on every subscription card and server config row in `SelectServerDialog`.
+- **Upgraded Statistics Screen:**
+  - Replaced static placeholder cards with real numeric live Download & Upload throughput (`B/s`, `KB/s`, `MB/s`) and session byte totals measured via foreground-gated `TrafficStats` sampling in `MainActivity`.
+  - Upgraded the dual-line session graph with smooth gradient curves, peak Y-axis rate, and X-axis timestamps tracking full connected session hours via `compactTrafficHistory`.
+  - Enhanced **Location** card to display resolved server IP alongside an **`IPv4` / `IPv6`** version badge, upgraded **Protocol & Mode** card with complete `ProtocolDetailsFormatter` technical model (`VLESS · REALITY · Vision · TCP`, `uTLS`, `ALPN`, `Mux`, `AEAD-2022`, etc.), and expanded card line capacity so routing text no longer truncates awkwardly.
+
 ## [1.9.0] - 2026-11-13
 
 - **Opt-In IPv6 Support (Disabled by Default):**

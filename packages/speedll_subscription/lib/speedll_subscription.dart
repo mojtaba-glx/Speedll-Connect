@@ -18,4 +18,6 @@ export 'src/parsers/singbox_json_parser.dart';
 export 'src/parsers/subscription_detector.dart';
 export 'src/validators/profile_validator.dart';
 export 'src/converters/singbox_converter.dart';
+export 'src/formatters/protocol_details_formatter.dart';
+export 'src/serializers/proxy_uri_serializer.dart';
 export 'src/services/subscription_updater.dart';

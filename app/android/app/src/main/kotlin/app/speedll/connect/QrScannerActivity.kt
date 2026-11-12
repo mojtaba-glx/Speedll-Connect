@@ -53,6 +53,7 @@ class QrScannerActivity : Activity() {
     private var backgroundThread: HandlerThread? = null
     private var backgroundHandler: Handler? = null
     private val hasScannedResult = AtomicBoolean(false)
+    private var cameraPermissionRequested = false
 
     private val qrReader = MultiFormatReader().apply {
         val hints = EnumMap<DecodeHintType, Any>(DecodeHintType::class.java)
@@ -158,12 +159,14 @@ class QrScannerActivity : Activity() {
         super.onResume()
         startBackgroundThread()
         if (checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            cameraPermissionRequested = false
             if (textureView.isAvailable) {
                 openCamera()
             } else {
                 textureView.surfaceTextureListener = surfaceTextureListener
             }
-        } else {
+        } else if (!cameraPermissionRequested) {
+            cameraPermissionRequested = true
             requestPermissions(arrayOf(Manifest.permission.CAMERA), REQUEST_CAMERA_PERMISSION)
         }
     }

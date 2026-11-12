@@ -482,6 +482,40 @@ class SingboxConverter {
     };
   }
 
+  Map<String, dynamic> _withAndroidDialerResilience(
+    Map<String, dynamic> entry, {
+    required bool includeTcpKeepAlive,
+  }) {
+    return <String, dynamic>{
+      ...entry,
+      if (!entry.containsKey('connect_timeout')) 'connect_timeout': '10s',
+      if (includeTcpKeepAlive) ...<String, dynamic>{
+        if (!entry.containsKey('tcp_keep_alive')) 'tcp_keep_alive': '75s',
+        if (!entry.containsKey('tcp_keep_alive_interval'))
+          'tcp_keep_alive_interval': '20s',
+      },
+    };
+  }
+
+  Map<String, dynamic> _withWireguardKeepalive(Map<String, dynamic> endpoint) {
+    final peers = endpoint['peers'];
+    if (peers is! List) return endpoint;
+    final updatedPeers = <Map<String, dynamic>>[
+      for (final rawPeer in peers)
+        if (rawPeer is Map<String, dynamic>)
+          <String, dynamic>{
+            ...rawPeer,
+            if (!rawPeer.containsKey('persistent_keepalive_interval'))
+              'persistent_keepalive_interval': 25,
+          },
+    ];
+    if (updatedPeers.isEmpty) return endpoint;
+    return <String, dynamic>{
+      ...endpoint,
+      'peers': updatedPeers,
+    };
+  }
+
   /// Builds a sing-box v1.14 configuration for Android's native TUN/libbox
   /// path. Unlike [buildFullConfig], this config has no local SOCKS/DNS
   /// inbounds and no `dns-in` route rule.
@@ -492,13 +526,26 @@ class SingboxConverter {
       '172.19.0.1/30',
       'fdfe:dcba:9876::1/126',
     ],
-    int mtu = 9000,
+    int mtu = 1400,
     String stack = 'gvisor',
   }) {
     final isWireguard = profile.protocol.toLowerCase() == 'wireguard';
     final outboundOrEndpoint = buildOutbound(
       profile,
       enableMux: routingOptions.enableMux,
+    );
+    final resilientProxy = isWireguard
+        ? _withWireguardKeepalive(outboundOrEndpoint)
+        : _withAndroidDialerResilience(
+            outboundOrEndpoint,
+            includeTcpKeepAlive: true,
+          );
+    final resilientDirect = _withAndroidDialerResilience(
+      <String, dynamic>{
+        'type': 'direct',
+        'tag': 'direct',
+      },
+      includeTcpKeepAlive: true,
     );
     final routeRules = buildRoutingRules(routingOptions)
         .where((rule) => rule['inbound'] != 'dns-in')
@@ -512,7 +559,7 @@ class SingboxConverter {
       'dns': buildDnsConfig(routingOptions),
       if (isWireguard)
         'endpoints': <Map<String, dynamic>>[
-          outboundOrEndpoint,
+          resilientProxy,
         ],
       'inbounds': <Map<String, dynamic>>[
         <String, dynamic>{
@@ -526,11 +573,8 @@ class SingboxConverter {
         },
       ],
       'outbounds': <Map<String, dynamic>>[
-        if (!isWireguard) outboundOrEndpoint,
-        <String, dynamic>{
-          'type': 'direct',
-          'tag': 'direct',
-        },
+        if (!isWireguard) resilientProxy,
+        resilientDirect,
       ],
       'route': <String, dynamic>{
         'rules': routeRules,

@@ -1,12 +1,13 @@
 package app.speedll.connect
 
-import android.os.Build
 import android.util.Log
 import io.nekohasekai.libbox.ExchangeContext
 import io.nekohasekai.libbox.LocalDNSTransport
+import java.io.InterruptedIOException
 import java.net.Inet4Address
 import java.net.Inet6Address
 import java.net.InetAddress
+import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
 class LocalResolver : LocalDNSTransport {
@@ -62,8 +63,23 @@ class LocalResolver : LocalDNSTransport {
             } else {
                 ctx.success(ips)
             }
-        } catch (_: UnknownHostException) {
-            ctx.errorCode(RCODE_NAME_ERROR)
+        } catch (e: UnknownHostException) {
+            val detail = "${e.message.orEmpty()} ${e.cause?.message.orEmpty()}".uppercase()
+            val transientLookupError =
+                !DefaultNetworkMonitor.isCurrentNetworkReachable() ||
+                    detail.contains("EAI_AGAIN") ||
+                    detail.contains("TRY_AGAIN") ||
+                    detail.contains("EAI_FAIL") ||
+                    detail.contains("EAI_SYSTEM") ||
+                    e.cause is SocketTimeoutException ||
+                    e.cause is InterruptedIOException
+            if (transientLookupError) {
+                // Report SERVFAIL on offline/transient Wi-Fi drops so libbox does
+                // not negatively cache the domain as non-existent (NXDOMAIN).
+                ctx.errorCode(RCODE_SERVER_FAILURE)
+            } else {
+                ctx.errorCode(RCODE_NAME_ERROR)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Local DNS lookup failed for $domain ($network): ${e.message}")
             ctx.errorCode(RCODE_SERVER_FAILURE)

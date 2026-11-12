@@ -31,11 +31,21 @@ void main() {
         tun['address'],
         equals(<String>['172.19.0.1/30', 'fdfe:dcba:9876::1/126']),
       );
-      expect(tun['mtu'], equals(9000));
+      expect(tun['mtu'], equals(1400));
       expect(tun['auto_route'], isTrue);
       expect(tun.containsKey('auto_redirect'), isFalse);
       expect(tun['stack'], equals('gvisor'));
       expect(tun['dns_mode'], equals('hijack'));
+
+      final outbounds = config['outbounds'] as List<Map<String, dynamic>>;
+      final proxyOutbound = outbounds.firstWhere((o) => o['tag'] == 'proxy');
+      final directOutbound = outbounds.firstWhere((o) => o['tag'] == 'direct');
+      expect(proxyOutbound['connect_timeout'], equals('10s'));
+      expect(proxyOutbound['tcp_keep_alive'], equals('75s'));
+      expect(proxyOutbound['tcp_keep_alive_interval'], equals('20s'));
+      expect(directOutbound['connect_timeout'], equals('10s'));
+      expect(directOutbound['tcp_keep_alive'], equals('75s'));
+      expect(directOutbound['tcp_keep_alive_interval'], equals('20s'));
       expect(
         inbounds.any((inbound) => inbound['type'] == 'mixed'),
         isFalse,
@@ -128,6 +138,9 @@ void main() {
       expect(tun['mtu'], equals(1380));
       expect(tun['stack'], equals('gvisor'));
       expect(config.containsKey('endpoints'), isTrue);
+      final endpoints = config['endpoints'] as List<Map<String, dynamic>>;
+      final peers = endpoints.first['peers'] as List<Map<String, dynamic>>;
+      expect(peers.first['persistent_keepalive_interval'], equals(25));
       expect(
         (config['outbounds'] as List)
             .where((outbound) => (outbound as Map)['tag'] == 'proxy'),

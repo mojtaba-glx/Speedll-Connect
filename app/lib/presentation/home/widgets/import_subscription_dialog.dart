@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -224,21 +223,6 @@ class _ImportSubscriptionDialogState
       }
 
       final connNotifier = ref.read(connectionControllerProvider.notifier);
-      final currentSelected =
-          ref.read(connectionControllerProvider).activeProfile;
-      final firstConnectable = importedProfiles.firstWhere(
-        PingService.isConnectableServer,
-        orElse: () => importedProfiles.first,
-      );
-
-      if (currentSelected == null ||
-          !PingService.isConnectableServer(currentSelected)) {
-        await connNotifier.selectProfile(firstConnectable);
-      }
-
-      if (!Platform.environment.containsKey('FLUTTER_TEST')) {
-        unawaited(connNotifier.pingAllProfiles());
-      }
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -247,11 +231,12 @@ class _ImportSubscriptionDialogState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'تعداد ${realCount > 0 ? realCount : importedProfiles.length} سرور با موفقیت در حافظه امن ذخیره شد.',
+            'تعداد ${realCount > 0 ? realCount : importedProfiles.length} سرور ذخیره شد؛ اتصال به سرور جدید آغاز گردید.',
           ),
           backgroundColor: Colors.green.shade700,
         ),
       );
+      unawaited(connNotifier.activateAndConnectImportedProfiles(importedProfiles));
     } else {
       setState(() {
         _isLoading = false;

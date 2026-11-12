@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speedll_subscription/speedll_subscription.dart';
 
@@ -11,6 +12,7 @@ import '../../../domain/ping/ping_service.dart';
 import '../../../domain/profiles/country_flag_resolver.dart';
 import 'country_flag_avatar.dart';
 import 'import_subscription_dialog.dart';
+import 'qr_share_dialog.dart';
 
 class SelectServerDialog extends ConsumerWidget {
   const SelectServerDialog({this.initialSubscriptionId, super.key});
@@ -615,9 +617,9 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
 
           const SizedBox(height: 6),
 
-          // 3. Actions Row: [⚡ هوشمند]  [👁️ مشاهده کانفیگ‌ها]  [🔄 بروزرسانی]  [🗑️]
+          // 3. Actions Strip: Row 1 [⚡ هوشمند | 👁️ مشاهده کانفیگ‌ها] + Row 2 [🔄 | 📋 | QR | 🗑️]
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: palette.isLight
                   ? Colors.black.withOpacity(0.03)
@@ -625,184 +627,217 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
               borderRadius: BorderRadius.circular(16),
             ),
             margin: const EdgeInsets.fromLTRB(10, 0, 10, 10),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Smart Mode action
-                InkWell(
-                  borderRadius: BorderRadius.circular(10),
-                  onTap: () async {
-                    if (!isActive && subProfiles.isNotEmpty) {
-                      await _activateSubscription(sub, subProfiles);
-                    }
-                    await ref
-                        .read(connectionControllerProvider.notifier)
-                        .setSmartMode(true);
-                    if (context.mounted && connState.isConnected) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(strings.switchedWhileConnectedToast),
-                          backgroundColor: const Color(0xFF16A34A),
-                        ),
-                      );
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: isActive && connState.isSmartMode
-                          ? palette.secondaryAccent.withOpacity(0.24)
-                          : palette.primaryAccent.withOpacity(0.10),
+                Row(
+                  children: [
+                    // Smart Mode action
+                    InkWell(
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isActive && connState.isSmartMode
-                            ? palette.secondaryAccent
-                            : Colors.transparent,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.bolt_rounded,
-                          size: 15,
-                          color: isActive && connState.isSmartMode
-                              ? palette.secondaryAccent
-                              : palette.textPrimary.withOpacity(0.85),
+                      onTap: () async {
+                        if (!isActive && subProfiles.isNotEmpty) {
+                          await _activateSubscription(sub, subProfiles);
+                        }
+                        await ref
+                            .read(connectionControllerProvider.notifier)
+                            .setSmartMode(true);
+                        if (context.mounted && connState.isConnected) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(strings.switchedWhileConnectedToast),
+                              backgroundColor: const Color(0xFF16A34A),
+                            ),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 6,
                         ),
-                        const SizedBox(width: 3),
-                        Text(
-                          strings.smartBadge,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
+                        decoration: BoxDecoration(
+                          color: isActive && connState.isSmartMode
+                              ? palette.secondaryAccent.withOpacity(0.24)
+                              : palette.primaryAccent.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
                             color: isActive && connState.isSmartMode
                                 ? palette.secondaryAccent
-                                : palette.textPrimary.withOpacity(0.85),
+                                : Colors.transparent,
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 6),
-
-                // View Configs action
-                Expanded(
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(10),
-                    onTap: () {
-                      setState(() {
-                        if (isExpanded) {
-                          _expandedSubscriptionIds.remove(sub.id);
-                        } else {
-                          _expandedSubscriptionIds.add(sub.id);
-                        }
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isExpanded
-                            ? palette.primaryAccent.withOpacity(0.20)
-                            : palette.primaryAccent.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            isExpanded
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.visibility_outlined,
-                            size: 15,
-                            color: palette.textPrimary,
-                          ),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              isExpanded
-                                  ? strings.hideConfigsLabel
-                                  : '${strings.viewConfigsLabel} (${subProfiles.length})',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.bolt_rounded,
+                              size: 15,
+                              color: isActive && connState.isSmartMode
+                                  ? palette.secondaryAccent
+                                  : palette.textPrimary.withOpacity(0.85),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              strings.smartBadge,
                               style: TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: palette.textPrimary,
+                                fontWeight: FontWeight.w800,
+                                color: isActive && connState.isSmartMode
+                                    ? palette.secondaryAccent
+                                    : palette.textPrimary.withOpacity(0.85),
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(width: 8),
+
+                    // View Configs action
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () {
+                          setState(() {
+                            if (isExpanded) {
+                              _expandedSubscriptionIds.remove(sub.id);
+                            } else {
+                              _expandedSubscriptionIds.add(sub.id);
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
                           ),
+                          decoration: BoxDecoration(
+                            color: isExpanded
+                                ? palette.primaryAccent.withOpacity(0.20)
+                                : palette.primaryAccent.withOpacity(0.08),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                isExpanded
+                                    ? Icons.keyboard_arrow_up_rounded
+                                    : Icons.visibility_outlined,
+                                size: 15,
+                                color: palette.textPrimary,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  isExpanded
+                                      ? strings.hideConfigsLabel
+                                      : '${strings.viewConfigsLabel} (${subProfiles.length})',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: palette.textPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          _CompactToolChip(
+                            icon: Icons.refresh_rounded,
+                            label: strings.isFa ? 'بروزرسانی' : 'Refresh',
+                            palette: palette,
+                            isLoading: connState.isRefreshingSubscriptions,
+                            onTap: connState.isRefreshingSubscriptions
+                                ? null
+                                : () async {
+                                    final res = await ref
+                                        .read(connectionControllerProvider
+                                            .notifier)
+                                        .refreshSubscriptionsNow();
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            res.isSuccess
+                                                ? strings
+                                                    .subscriptionsUpdatedToast
+                                                : (res.errorMessage ??
+                                                    strings
+                                                        .subscriptionsUpdateFailedToast),
+                                          ),
+                                          backgroundColor: res.isSuccess
+                                              ? const Color(0xFF16A34A)
+                                              : const Color(0xFFEF4444),
+                                        ),
+                                      );
+                                    }
+                                  },
+                          ),
+                          if (sub.url.trim().isNotEmpty) ...[
+                            _CompactToolChip(
+                              icon: Icons.content_copy_rounded,
+                              label: strings.copyLinkAction,
+                              palette: palette,
+                              onTap: () => _copyShareLink(
+                                context: context,
+                                text: sub.url.trim(),
+                                toastMessage:
+                                    strings.subscriptionLinkCopiedToast,
+                              ),
+                            ),
+                            _CompactToolChip(
+                              icon: Icons.qr_code_2_rounded,
+                              label: 'QR',
+                              iconColor: palette.primaryAccent,
+                              palette: palette,
+                              onTap: () => QrShareDialog.show(
+                                context,
+                                title: strings.qrShareSubscriptionTitle,
+                                subtitle: displayName,
+                                shareText: sub.url.trim(),
+                                copiedToast:
+                                    strings.subscriptionLinkCopiedToast,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                  ),
-                ),
-
-                const SizedBox(width: 6),
-
-                // Refresh action
-                IconButton(
-                  tooltip: strings.refreshSubscriptionsTooltip,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: connState.isRefreshingSubscriptions
-                      ? null
-                      : () async {
-                          final res = await ref
-                              .read(connectionControllerProvider.notifier)
-                              .refreshSubscriptionsNow();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  res.isSuccess
-                                      ? strings.subscriptionsUpdatedToast
-                                      : (res.errorMessage ??
-                                          strings
-                                              .subscriptionsUpdateFailedToast),
-                                ),
-                                backgroundColor: res.isSuccess
-                                    ? const Color(0xFF16A34A)
-                                    : const Color(0xFFEF4444),
-                              ),
-                            );
-                          }
-                        },
-                  icon: connState.isRefreshingSubscriptions
-                      ? const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 1.8),
-                        )
-                      : Icon(
-                          Icons.refresh_rounded,
-                          size: 18,
-                          color: palette.textPrimary.withOpacity(0.85),
-                        ),
-                ),
-
-                // Delete subscription action
-                IconButton(
-                  tooltip: strings.deleteSubscriptionTitle,
-                  visualDensity: VisualDensity.compact,
-                  onPressed: () => _confirmDeleteSubscription(
-                    context: context,
-                    sub: sub,
-                    displayName: displayName,
-                    palette: palette,
-                    strings: strings,
-                  ),
-                  icon: const Icon(
-                    Icons.delete_outline_rounded,
-                    size: 19,
-                    color: Color(0xFFEF4444),
-                  ),
+                    const SizedBox(width: 4),
+                    _CompactIconAction(
+                      tooltip: strings.deleteSubscriptionTitle,
+                      icon: Icons.delete_outline_rounded,
+                      iconSize: 18,
+                      boxSize: 28,
+                      color: const Color(0xFFEF4444),
+                      onTap: () => _confirmDeleteSubscription(
+                        context: context,
+                        sub: sub,
+                        displayName: displayName,
+                        palette: palette,
+                        strings: strings,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -1152,15 +1187,15 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
           },
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                CountryFlagAvatar(location: loc, size: 28),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
+                Row(
+                  children: [
+                    CountryFlagAvatar(location: loc, size: 24),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
                         profile.displayName,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1170,103 +1205,175 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
                           fontSize: 13,
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: palette.primaryAccent.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            child: Text(
-                              _transportSummary(profile),
-                              style: TextStyle(
-                                color: palette.primaryAccent,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Directionality(
-                              textDirection: TextDirection.ltr,
-                              child: Text(
-                                () {
-                                  final rawHost =
-                                      (profile.serverAddress ?? '—').trim();
-                                  final port = profile.serverPort ?? 443;
-                                  final formattedHost = rawHost.contains(':') &&
-                                          !rawHost.startsWith('[')
-                                      ? '[$rawHost]'
-                                      : rawHost;
-                                  return '$formattedHost:$port';
-                                }(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: palette.textSecondary.withOpacity(0.70),
-                                  fontSize: 10.5,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: pingColor.withOpacity(0.14),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: pingColor.withOpacity(0.40)),
-                  ),
-                  child: Text(
-                    strings.pingMsValue(pingMs),
-                    style: TextStyle(
-                      color: pingColor,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 10.5,
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: pingColor.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: pingColor.withOpacity(0.40)),
+                      ),
+                      child: Text(
+                        strings.pingMsValue(pingMs),
+                        style: TextStyle(
+                          color: pingColor,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      isSelected || isCurrentActive
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_off_rounded,
+                      size: 18,
+                      color: isSelected || isCurrentActive
+                          ? palette.primaryAccent
+                          : Colors.blueGrey.shade400,
+                    ),
+                  ],
                 ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                  tooltip: strings.confirmDelete,
-                  icon: Icon(
-                    Icons.close_rounded,
-                    size: 17,
-                    color: palette.textSecondary.withOpacity(0.65),
-                  ),
-                  onPressed: () async {
-                    await ref
-                        .read(profilesListProvider.notifier)
-                        .removeProfile(profile.id);
-                  },
-                ),
-                Icon(
-                  isSelected || isCurrentActive
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_off_rounded,
-                  size: 19,
-                  color: isSelected || isCurrentActive
-                      ? palette.primaryAccent
-                      : Colors.blueGrey.shade400,
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    const SizedBox(width: 32),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1.5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: palette.primaryAccent.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Text(
+                          _transportSummary(profile),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.primaryAccent,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: Text(
+                          () {
+                            final rawHost =
+                                (profile.serverAddress ?? '—').trim();
+                            final port = profile.serverPort ?? 443;
+                            final formattedHost = rawHost.contains(':') &&
+                                    !rawHost.startsWith('[')
+                                ? '[$rawHost]'
+                                : rawHost;
+                            return '$formattedHost:$port';
+                          }(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: palette.textSecondary.withOpacity(0.75),
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    _CompactIconAction(
+                      tooltip: strings.copyConfigTooltip,
+                      icon: Icons.content_copy_rounded,
+                      iconSize: 15,
+                      boxSize: 26,
+                      color: palette.textSecondary.withOpacity(0.88),
+                      onTap: () {
+                        final exported =
+                            _serializeOrToast(context, strings, profile);
+                        if (exported == null) return;
+                        _copyShareLink(
+                          context: context,
+                          text: exported,
+                          toastMessage: strings.configCopiedToast,
+                        );
+                      },
+                    ),
+                    _CompactIconAction(
+                      tooltip: strings.shareQrTooltip,
+                      icon: Icons.qr_code_2_rounded,
+                      iconSize: 16,
+                      boxSize: 26,
+                      color: palette.primaryAccent,
+                      onTap: () {
+                        final exported =
+                            _serializeOrToast(context, strings, profile);
+                        if (exported == null) return;
+                        QrShareDialog.show(
+                          context,
+                          title: strings.qrShareConfigTitle,
+                          subtitle: profile.displayName,
+                          shareText: exported,
+                          copiedToast: strings.configCopiedToast,
+                        );
+                      },
+                    ),
+                    _CompactIconAction(
+                      tooltip: strings.confirmDelete,
+                      icon: Icons.close_rounded,
+                      iconSize: 16,
+                      boxSize: 24,
+                      color: palette.textSecondary.withOpacity(0.68),
+                      onTap: () async {
+                        await ref
+                            .read(profilesListProvider.notifier)
+                            .removeProfile(profile.id);
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  String? _serializeOrToast(
+    BuildContext context,
+    AppStrings strings,
+    ServerProfile profile,
+  ) {
+    final exported = ProxyUriSerializer.serialize(profile);
+    if (exported != null) return exported;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(strings.configExportUnavailableToast),
+        backgroundColor: const Color(0xFFEF4444),
+      ),
+    );
+    return null;
+  }
+
+  Future<void> _copyShareLink({
+    required BuildContext context,
+    required String text,
+    required String toastMessage,
+  }) async {
+    await Clipboard.setData(ClipboardData(text: text));
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(toastMessage),
+        backgroundColor: const Color(0xFF16A34A),
       ),
     );
   }
@@ -1395,5 +1502,101 @@ class _ProfilesBrowserPanelState extends ConsumerState<ProfilesBrowserPanel> {
           .read(connectionControllerProvider.notifier)
           .deleteManualProfiles();
     }
+  }
+}
+
+class _CompactToolChip extends StatelessWidget {
+  const _CompactToolChip({
+    required this.icon,
+    required this.label,
+    required this.palette,
+    this.iconColor,
+    this.isLoading = false,
+    this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final SpeedllThemePalette palette;
+  final Color? iconColor;
+  final bool isLoading;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: palette.primaryAccent.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(9),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(9),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4.5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isLoading)
+                const SizedBox(
+                  width: 13,
+                  height: 13,
+                  child: CircularProgressIndicator(strokeWidth: 1.8),
+                )
+              else
+                Icon(
+                  icon,
+                  size: 14,
+                  color: iconColor ?? palette.textPrimary.withOpacity(0.85),
+                ),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  color: palette.textPrimary.withOpacity(0.88),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactIconAction extends StatelessWidget {
+  const _CompactIconAction({
+    required this.tooltip,
+    required this.icon,
+    required this.iconSize,
+    required this.boxSize,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final double iconSize;
+  final double boxSize;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(8),
+          onTap: onTap,
+          child: SizedBox(
+            width: boxSize,
+            height: boxSize,
+            child: Icon(icon, size: iconSize, color: color),
+          ),
+        ),
+      ),
+    );
   }
 }

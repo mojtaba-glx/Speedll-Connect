@@ -321,4 +321,67 @@ class AppStrings {
   String get themeOnboardingSubtitle => isFa
       ? 'تم و رنگ‌بندی پیش‌فرض برنامه را انتخاب کنید (هر زمان از بخش تنظیمات قابل تغییر است):'
       : 'Choose your default app theme palette (you can change it anytime in Settings):';
+
+  // Copy, QR & Share Actions
+  String get copyConfigTooltip => isFa ? 'کپی لینک کانفیگ' : 'Copy Config Link';
+  String get copySubscriptionTooltip =>
+      isFa ? 'کپی لینک اشتراک' : 'Copy Subscription Link';
+  String get shareQrTooltip =>
+      isFa ? 'بارکد QR و اشتراک‌گذاری' : 'QR Code & Share';
+  String get configCopiedToast =>
+      isFa ? 'لینک کانفیگ در کلیپ‌بورد کپی شد.' : 'Config link copied.';
+  String get subscriptionLinkCopiedToast => isFa
+      ? 'لینک اشتراک در کلیپ‌بورد کپی شد.'
+      : 'Subscription link copied.';
+  String get configExportUnavailableToast => isFa
+      ? 'امکان ساخت لینک اشتراک برای این کانفیگ وجود ندارد.'
+      : 'Cannot export share link for this config.';
+  String get qrShareSubscriptionTitle =>
+      isFa ? 'اشتراک‌گذاری لینک اشتراک' : 'Share Subscription Link';
+  String get qrShareConfigTitle =>
+      isFa ? 'اشتراک‌گذاری کانفیگ' : 'Share Server Config';
+  String get copyLinkAction => isFa ? 'کپی لینک' : 'Copy Link';
+  String get shareLinkAction => isFa ? 'اشتراک‌گذاری' : 'Share';
+  String get qrUnavailableFallback => isFa
+      ? 'پیش‌نمایش بارکد روی این پلتفرم در دسترس نیست؛ از دکمه کپی استفاده کنید.'
+      : 'QR preview is unavailable on this platform; please use Copy Link.';
+
+  // Enhanced Statistics & Battery Settings
+  String get sessionTotalPrefix => isFa ? 'مجموع' : 'Total';
+  String get connectedDurationTitle =>
+      isFa ? 'ساعت و مدت اتصال' : 'Session Time';
+  String get noActiveTrafficHint => isFa
+      ? 'برای ثبت سرعت لحظه‌ای و نمودار زمانی متصل شوید'
+      : 'Connect to record live throughput & session timeline';
+  String get batteryOptimizationTitle =>
+      isFa ? 'بهینه‌سازی باتری اندروید' : 'Android Battery Optimization';
+  String get batteryOptimizationSubtitle => isFa
+      ? 'برای جلوگیری از قطع شدن در خواب، روی «بدون محدودیت» تنظیم کنید'
+      : 'Set to Unrestricted to prevent Doze disconnections';
+  String get batteryUnrestrictedBadge =>
+      isFa ? 'بدون محدودیت' : 'Unrestricted';
+  String get batteryRestrictedBadge => isFa ? 'محدودشده' : 'Restricted';
+
+  // Android Quick Settings Tile
+  String get quickSettingsTileTitle => isFa
+      ? 'کاشی نوار وضعیت سریع (Quick Settings)'
+      : 'Quick Settings Notification Tile';
+  String get quickSettingsTileSubtitle => isFa
+      ? 'افزودن دکمه اتصال/قطع مستقیم به منوی بالای گوشی (کنار وای‌فای و دیتا)'
+      : 'Add one-tap VPN toggle to Android Quick Settings next to Wi-Fi & Data';
+  String get quickSettingsTileAddedToast => isFa
+      ? 'دکمه سریع Speedll Connect به نوار بالای گوشی اضافه شد.'
+      : 'Speedll Connect tile added to Quick Settings.';
+  String get quickSettingsTileAlreadyAddedToast => isFa
+      ? 'این دکمه هم‌اکنون در نوار تنظیمات سریع گوشی شما فعال است.'
+      : 'Quick Settings tile is already active in your shade.';
+  String get quickSettingsTileDeniedToast => isFa
+      ? 'افزودن کاشی تایید نشد؛ می‌توانید دستی از ویرایش نوار بالا اضافه کنید.'
+      : 'Tile request dismissed; you can add it manually from Quick Settings edit.';
+  String get quickSettingsTileManualGuideTitle =>
+      isFa ? 'افزودن به نوار وضعیت سریع' : 'Add to Quick Settings';
+  String get quickSettingsTileManualGuideBody => isFa
+      ? 'برای افزودن دکمه Speedll Connect:\n۱. نوار بالای صفحه گوشی را دو بار به پایین بکشید.\n۲. روی آیکون «ویرایش» (مداد یا مربع ویرایش) بزنید.\n۳. کاشی «Speedll Connect» را به ردیف آیکون‌های بالا بکشید.\n\nبا یک لمس اتصال برقرار/قطع می‌شود و با نگه داشتن آن برنامه باز می‌گردد.'
+      : 'To add Speedll Connect to your Quick Settings:\n1. Swipe down twice from the top of your screen.\n2. Tap Edit (pencil icon).\n3. Drag "Speedll Connect" into your active tiles.\n\nTap to toggle VPN; press & hold to open the app.';
+  String get quickSettingsGotItButton => isFa ? 'متوجه شدم' : 'Got it';
 }

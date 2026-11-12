@@ -3,6 +3,18 @@ import 'package:speedll_subscription/speedll_subscription.dart'
 import '../../domain/connection/connection_phase.dart';
 import '../../domain/profiles/server_profile.dart';
 
+class TrafficSample {
+  const TrafficSample({
+    required this.elapsed,
+    required this.uplinkBps,
+    required this.downlinkBps,
+  });
+
+  final Duration elapsed;
+  final int uplinkBps;
+  final int downlinkBps;
+}
+
 class ConnectionUiState {
   const ConnectionUiState({
     this.phase = ConnectionPhase.disconnected,
@@ -19,6 +31,11 @@ class ConnectionUiState {
     this.isPingingAll = false,
     this.pingHistory = const <int>[],
     this.smartLockedProfileId,
+    this.uplinkBytesPerSec = 0,
+    this.downlinkBytesPerSec = 0,
+    this.uplinkTotalBytes = 0,
+    this.downlinkTotalBytes = 0,
+    this.trafficHistory = const <TrafficSample>[],
   });
 
   final ConnectionPhase phase;
@@ -35,6 +52,11 @@ class ConnectionUiState {
   final bool isPingingAll;
   final List<int> pingHistory;
   final String? smartLockedProfileId;
+  final int uplinkBytesPerSec;
+  final int downlinkBytesPerSec;
+  final int uplinkTotalBytes;
+  final int downlinkTotalBytes;
+  final List<TrafficSample> trafficHistory;
 
   bool get isSmartLocked =>
       isSmartMode &&
@@ -74,6 +96,11 @@ class ConnectionUiState {
     bool? isPingingAll,
     List<int>? pingHistory,
     Object? smartLockedProfileId = _unset,
+    int? uplinkBytesPerSec,
+    int? downlinkBytesPerSec,
+    int? uplinkTotalBytes,
+    int? downlinkTotalBytes,
+    List<TrafficSample>? trafficHistory,
   }) {
     return ConnectionUiState(
       phase: phase ?? this.phase,
@@ -103,6 +130,11 @@ class ConnectionUiState {
       smartLockedProfileId: identical(smartLockedProfileId, _unset)
           ? this.smartLockedProfileId
           : smartLockedProfileId as String?,
+      uplinkBytesPerSec: uplinkBytesPerSec ?? this.uplinkBytesPerSec,
+      downlinkBytesPerSec: downlinkBytesPerSec ?? this.downlinkBytesPerSec,
+      uplinkTotalBytes: uplinkTotalBytes ?? this.uplinkTotalBytes,
+      downlinkTotalBytes: downlinkTotalBytes ?? this.downlinkTotalBytes,
+      trafficHistory: trafficHistory ?? this.trafficHistory,
     );
   }
 }

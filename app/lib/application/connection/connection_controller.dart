@@ -12,6 +12,7 @@ import '../../domain/engine/windows_vpn_engine_adapter.dart';
 import '../../domain/ping/ping_service.dart';
 import '../../domain/routing/region_detector.dart';
 import '../../domain/scanner/qr_scanner_service.dart';
+import '../../domain/share/share_qr_service.dart';
 import 'connection_state.dart';
 
 final secureProfileStorageProvider = Provider<SecureProfileStorage>((ref) {
@@ -20,6 +21,10 @@ final secureProfileStorageProvider = Provider<SecureProfileStorage>((ref) {
 
 final qrScannerServiceProvider = Provider<QrScannerService>((ref) {
   return const AndroidQrScannerService();
+});
+
+final shareQrServiceProvider = Provider<ShareAndQrService>((ref) {
+  return const AndroidShareAndQrService();
 });
 
 final pingServiceProvider = Provider<PingService>((ref) {
@@ -304,6 +309,15 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
         _isHotSwitching = false;
         _consecutiveSmartHealthFailures = 0;
         _smartFailoverAttempts = 0;
+        if (!keepTimer) {
+          state = state.copyWith(
+            uplinkBytesPerSec: 0,
+            downlinkBytesPerSec: 0,
+            uplinkTotalBytes: 0,
+            downlinkTotalBytes: 0,
+            trafficHistory: const <TrafficSample>[],
+          );
+        }
         if (state.isSmartMode && state.activeProfile != null) {
           _smartLockedProfileId = state.activeProfile!.id;
           state = state.copyWith(smartLockedProfileId: _smartLockedProfileId);
@@ -314,6 +328,10 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
         }
       } else if (phase == ConnectionPhase.failed) {
         _stopTimer();
+        state = state.copyWith(
+          uplinkBytesPerSec: 0,
+          downlinkBytesPerSec: 0,
+        );
         if (state.isSmartMode &&
             state.activeProfile != null &&
             _smartFailoverAttempts < 2 &&
@@ -326,10 +344,26 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
         if (phase == ConnectionPhase.disconnected) {
           _smartLockedProfileId = null;
           _consecutiveSmartHealthFailures = 0;
-          state = state.copyWith(smartLockedProfileId: null);
+          state = state.copyWith(
+            smartLockedProfileId: null,
+            uplinkBytesPerSec: 0,
+            downlinkBytesPerSec: 0,
+            uplinkTotalBytes: 0,
+            downlinkTotalBytes: 0,
+            trafficHistory: const <TrafficSample>[],
+          );
         }
       }
     });
+
+    final currentEngine = engine;
+    if (currentEngine is AndroidVpnEngineAdapter) {
+      _trafficSubscription = currentEngine.trafficStats.listen(_onTrafficStats);
+      _quickTileSubscription =
+          currentEngine.quickTileConnectRequests.listen((_) {
+        _onQuickTileConnectRequested();
+      });
+    }
 
     _initPersistedState();
     _startPeriodicBackgroundUpdates(periodicRefreshInterval);
@@ -340,6 +374,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
             if (mounted && state.isConnected) {
               _startTimer(resetDuration: false);
             }
+            unawaited(_onAppResumed());
           } else {
             _stopTimer();
           }
@@ -358,6 +393,8 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
   final List<SubscriptionSource> Function() _readSubscriptions;
 
   StreamSubscription<ConnectionPhase>? _subscription;
+  StreamSubscription<TrafficStatsSnapshot>? _trafficSubscription;
+  StreamSubscription<void>? _quickTileSubscription;
   Timer? _timer;
   Timer? _smartHealthTimer;
   DateTime? _connectedSince;
@@ -415,6 +452,10 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
           !Platform.environment.containsKey('FLUTTER_TEST')) {
         unawaited(pingActiveProfile());
       }
+    }
+
+    if (!Platform.environment.containsKey('FLUTTER_TEST')) {
+      await syncWithNativeState();
     }
 
     await _maybeRefreshStaleSubscriptions();
@@ -582,9 +623,11 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
       if (!mounted) return results;
 
       // In Smart Mode, only auto-select from pingAllProfiles when NOT already
-      // connected and locked onto a working server.
+      // connecting/connected and locked onto a working server.
       if (state.isSmartMode &&
-          (!state.isConnected || _smartLockedProfileId == null)) {
+          !state.isConnected &&
+          !state.isConnecting &&
+          _smartLockedProfileId == null) {
         final best = pingService.pickBestProfile(profiles, results);
         if (best != null && best.id != state.activeProfile?.id) {
           await selectProfile(best, keepSmartMode: true);
@@ -912,6 +955,170 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
     return false;
   }
 
+  /// Checks whether Android battery optimization is set to Unrestricted for this app.
+  Future<bool> isIgnoringBatteryOptimizations() async {
+    final currentEngine = engine;
+    if (currentEngine is AndroidVpnEngineAdapter) {
+      return currentEngine.isIgnoringBatteryOptimizations();
+    }
+    return true;
+  }
+
+  /// Launches Android's system Battery Optimization settings page.
+  Future<bool> openBatteryOptimizationSettings() async {
+    final currentEngine = engine;
+    if (currentEngine is AndroidVpnEngineAdapter) {
+      return currentEngine.openBatteryOptimizationSettings();
+    }
+    return false;
+  }
+
+  /// Requests adding Speedll Connect's Quick Settings Tile to the system shade (Android 13+).
+  Future<String> requestAddQuickSettingsTile() async {
+    final currentEngine = engine;
+    if (currentEngine is AndroidVpnEngineAdapter) {
+      return currentEngine.requestAddQuickSettingsTile();
+    }
+    return 'unsupported';
+  }
+
+  void _onQuickTileConnectRequested() {
+    if (!mounted ||
+        state.isConnected ||
+        state.isConnecting ||
+        state.isDisconnecting) {
+      return;
+    }
+    if (_readProfiles().isEmpty) return;
+    unawaited(toggleConnection());
+  }
+
+  /// Selects a newly imported subscription or single profile and immediately
+  /// initiates connection (or hot-switches the running tunnel onto it).
+  Future<void> activateAndConnectImportedProfiles(
+    List<ServerProfile> importedProfiles,
+  ) async {
+    if (importedProfiles.isEmpty) return;
+
+    final connectable =
+        importedProfiles.where(PingService.isConnectableServer).toList();
+    final candidates = connectable.isNotEmpty ? connectable : importedProfiles;
+
+    var target = candidates.first;
+    if (state.isSmartMode &&
+        candidates.length > 1 &&
+        !Platform.environment.containsKey('FLUTTER_TEST')) {
+      final pingMap = await pingService.measureBatchParallel(
+        candidates,
+        samplesPerProfile: 1,
+        preferIpv6: state.routingOptions.enableIpv6,
+        onSingleResult: (profileId, ms) {
+          if (!mounted) return;
+          state = state.copyWith(
+            profilePings: <String, int>{
+              ...state.profilePings,
+              profileId: ms,
+            },
+          );
+        },
+      );
+      final best = pingService.pickBestProfile(candidates, pingMap);
+      if (best != null) {
+        target = best;
+      }
+    }
+
+    if (!mounted) return;
+
+    final previousId = state.activeProfile?.id;
+    final wasActive = state.isConnected || state.isConnecting;
+
+    if (state.isSmartMode) {
+      _smartLockedProfileId = target.id;
+    }
+
+    if (wasActive && previousId != null && previousId != target.id) {
+      await selectProfile(target, keepSmartMode: true);
+      return;
+    }
+
+    final cachedPing = state.profilePings[target.id];
+    state = state.copyWith(
+      activeProfile: target,
+      livePingMs: cachedPing,
+      smartLockedProfileId: state.isSmartMode ? target.id : null,
+      errorMessage: null,
+      diagnosticCode: null,
+    );
+    await storage.saveActiveProfileId(target.id);
+
+    if (!Platform.environment.containsKey('FLUTTER_TEST') &&
+        cachedPing == null) {
+      unawaited(pingActiveProfile());
+    }
+
+    _isHotSwitching = wasActive;
+    try {
+      await engine.connect(target);
+    } catch (e) {
+      _isHotSwitching = false;
+      final report = DiagnosticErrorMapper.fromCodeOrError(e);
+      state = state.copyWith(
+        errorMessage: report.formattedDisplay,
+        diagnosticCode: report.code,
+      );
+    }
+  }
+
+  /// Appends [next] while keeping early session anchor timestamps intact so the
+  /// statistics chart spans the full multi-hour connected session duration.
+  static List<TrafficSample> compactTrafficHistory(
+    List<TrafficSample> current,
+    TrafficSample next, {
+    int maxSamples = 60,
+  }) {
+    final updated = <TrafficSample>[...current, next];
+    if (updated.length <= maxSamples) return updated;
+
+    final compacted = <TrafficSample>[updated.first];
+    for (var i = 1; i + 1 < updated.length; i += 2) {
+      final a = updated[i];
+      final b = updated[i + 1];
+      compacted.add(
+        TrafficSample(
+          elapsed: b.elapsed,
+          uplinkBps: a.uplinkBps > b.uplinkBps ? a.uplinkBps : b.uplinkBps,
+          downlinkBps:
+              a.downlinkBps > b.downlinkBps ? a.downlinkBps : b.downlinkBps,
+        ),
+      );
+    }
+    if ((updated.length - 1).isOdd) {
+      compacted.add(updated.last);
+    }
+    return compacted;
+  }
+
+  void _onTrafficStats(TrafficStatsSnapshot stats) {
+    if (!mounted || (!state.isConnected && !state.isConnecting)) return;
+    final since = _connectedSince;
+    final elapsed = since != null
+        ? DateTime.now().difference(since)
+        : state.connectedDuration;
+    final sample = TrafficSample(
+      elapsed: elapsed.isNegative ? Duration.zero : elapsed,
+      uplinkBps: stats.uplinkBps,
+      downlinkBps: stats.downlinkBps,
+    );
+    state = state.copyWith(
+      uplinkBytesPerSec: stats.uplinkBps,
+      downlinkBytesPerSec: stats.downlinkBps,
+      uplinkTotalBytes: stats.uplinkTotalBytes,
+      downlinkTotalBytes: stats.downlinkTotalBytes,
+      trafficHistory: compactTrafficHistory(state.trafficHistory, sample),
+    );
+  }
+
   void _startTimer({bool resetDuration = true}) {
     _timer?.cancel();
     if (resetDuration || _connectedSince == null) {
@@ -943,9 +1150,65 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
     });
   }
 
+  Future<void> _onAppResumed() async {
+    PingService.clearDnsCache();
+    await syncWithNativeState();
+  }
+
+  /// Synchronizes Dart connection phase and uptime with native Android VPN state
+  /// so an Activity restart or lifecycle resume never drifts out of sync.
+  Future<void> syncWithNativeState() async {
+    final currentEngine = engine;
+    if (currentEngine is! AndroidVpnEngineAdapter || !mounted) return;
+    final nativeState = await currentEngine.getNativeTunnelState();
+    if (!mounted) return;
+
+    if (state.phase == ConnectionPhase.connected && !nativeState.isRunning) {
+      _stopTimer();
+      _connectedSince = null;
+      _smartLockedProfileId = null;
+      _consecutiveSmartHealthFailures = 0;
+      state = state.copyWith(
+        phase: ConnectionPhase.disconnected,
+        connectedDuration: Duration.zero,
+        smartLockedProfileId: null,
+        uplinkBytesPerSec: 0,
+        downlinkBytesPerSec: 0,
+        uplinkTotalBytes: 0,
+        downlinkTotalBytes: 0,
+        trafficHistory: const <TrafficSample>[],
+      );
+      return;
+    }
+
+    if (nativeState.isRunning &&
+        (state.phase == ConnectionPhase.disconnected ||
+            state.phase == ConnectionPhase.connected)) {
+      final nativeElapsed = Duration(seconds: nativeState.connectedSeconds);
+      final shouldBackdateStart =
+          nativeState.connectedSeconds > 0 &&
+          (_connectedSince == null ||
+              DateTime.now().difference(_connectedSince!).inSeconds + 2 <
+                  nativeState.connectedSeconds);
+      if (shouldBackdateStart) {
+        _connectedSince = DateTime.now().subtract(nativeElapsed);
+      }
+      if (state.phase != ConnectionPhase.connected || shouldBackdateStart) {
+        state = state.copyWith(
+          phase: ConnectionPhase.connected,
+          connectedDuration:
+              shouldBackdateStart ? nativeElapsed : state.connectedDuration,
+          errorMessage: null,
+          diagnosticCode: null,
+        );
+        _startTimer(resetDuration: false);
+      }
+    }
+  }
+
   /// Checks active server health in Smart Mode; if the locked server fails or
-  /// experiences extreme latency (>1800ms) for 2 consecutive checks, automatically
-  /// fails over to the next best working server and locks onto it.
+  /// experiences extreme latency (>1800ms) for 2 consecutive checks, tries
+  /// flushing stale sockets once before failing over to another server.
   Future<void> checkSmartConnectionHealth() async {
     if (!mounted ||
         _isCheckingSmartHealth ||
@@ -966,7 +1229,14 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
       final isUnhealthy = ms == null || ms <= 0 || ms > 1800;
       if (isUnhealthy) {
         _consecutiveSmartHealthFailures++;
-        if (_consecutiveSmartHealthFailures >= 2) {
+        if (_consecutiveSmartHealthFailures == 1) {
+          final currentEngine = engine;
+          if (currentEngine is AndroidVpnEngineAdapter) {
+            await currentEngine.resetNetwork();
+          } else {
+            PingService.clearDnsCache();
+          }
+        } else if (_consecutiveSmartHealthFailures >= 2) {
           _consecutiveSmartHealthFailures = 0;
           await _triggerSmartFailover(active.id);
         }
@@ -1108,6 +1378,8 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
     _smartHealthTimer?.cancel();
     _lifecycleListener?.dispose();
     _subscription?.cancel();
+    _trafficSubscription?.cancel();
+    _quickTileSubscription?.cancel();
     updater.stopPeriodicRefresh();
     super.dispose();
   }

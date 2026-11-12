@@ -325,6 +325,7 @@ class LibboxPlatformInterface(
     override fun includeAllNetworks(): Boolean = false
 
     override fun clearDNSCache() {
+        service.notifyDnsCacheCleared()
     }
 
     override fun readWIFIState(): WIFIState? = null

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -12,6 +13,7 @@ import 'package:speedll_connect_app/data/storage/secure_profile_storage.dart';
 import 'package:speedll_connect_app/presentation/home/widgets/language_onboarding_dialog.dart';
 import 'package:speedll_connect_app/presentation/home/widgets/theme_onboarding_dialog.dart';
 import 'package:speedll_connect_app/domain/diagnostics/diagnostic_error_mapper.dart';
+import 'package:speedll_connect_app/domain/engine/android_vpn_engine_adapter.dart';
 import 'package:speedll_connect_app/domain/engine/connection_engine.dart';
 import 'package:speedll_connect_app/domain/engine/windows_vpn_engine_adapter.dart';
 import 'package:speedll_connect_app/domain/connection/connection_phase.dart';
@@ -286,8 +288,8 @@ void main() {
       AppVersion.fullVersion,
       equals('${AppVersion.versionName} (Build ${AppVersion.buildNumber})'),
     );
-    expect(AppVersion.versionName, equals('1.9.0'));
-    expect(AppVersion.buildNumber, equals(15));
+    expect(AppVersion.versionName, equals('1.10.2'));
+    expect(AppVersion.buildNumber, equals(18));
 
     final winAdapter = WindowsVpnEngineAdapter(useTunAdapter: true);
     final desktopConfig =
@@ -713,5 +715,160 @@ void main() {
 
     final updatedRouting = await storage.loadRoutingOptions();
     expect(updatedRouting.enableIpv6, isTrue);
+  });
+
+  test(
+      'AndroidVpnEngineAdapter ignores event:dns_cleared and exposes isRunning/resetNetwork',
+      () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const methodChannel = MethodChannel('app.speedll.connect/vpn_test');
+    const eventChannel = EventChannel('app.speedll.connect/vpn_events_test');
+    final recordedMethods = <String>[];
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(methodChannel, (call) async {
+      recordedMethods.add(call.method);
+      if (call.method == 'isRunning') return true;
+      if (call.method == 'resetNetwork') return true;
+      return null;
+    });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+      eventChannel,
+      MockStreamHandler.inline(
+        onListen: (arguments, events) {
+          events.success('connected');
+          events.success('event:dns_cleared');
+        },
+      ),
+    );
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(methodChannel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockStreamHandler(eventChannel, null);
+    });
+
+    final adapter = AndroidVpnEngineAdapter(
+      methodChannel: methodChannel,
+      eventChannel: eventChannel,
+    );
+    final phases = <ConnectionPhase>[];
+    final sub = adapter.connectionPhases.listen(phases.add);
+    addTearDown(sub.cancel);
+
+    await Future<void>.delayed(Duration.zero);
+
+    expect(phases, equals(<ConnectionPhase>[ConnectionPhase.connected]));
+    expect(adapter.currentPhase, equals(ConnectionPhase.connected));
+    expect(await adapter.isRunning(), isTrue);
+    expect(await adapter.resetNetwork(), isTrue);
+    expect(recordedMethods, equals(<String>['isRunning', 'resetNetwork']));
+  });
+
+  test(
+      'Smart health monitor attempts resetNetwork before failing over on Android',
+      () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    const methodChannel =
+        MethodChannel('app.speedll.connect/vpn_health_reset_test');
+    const eventChannel =
+        EventChannel('app.speedll.connect/vpn_events_health_reset_test');
+    var resetNetworkCalls = 0;
+    dynamic eventEmitter;
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockStreamHandler(
+      eventChannel,
+      MockStreamHandler.inline(
+        onListen: (arguments, events) {
+          eventEmitter = events;
+        },
+        onCancel: (arguments) {
+          eventEmitter = null;
+        },
+      ),
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(methodChannel, (call) async {
+      if (call.method == 'requestPermissionAndStart') {
+        eventEmitter?.success('connected');
+        return true;
+      }
+      if (call.method == 'resetNetwork') {
+        resetNetworkCalls++;
+        return true;
+      }
+      if (call.method == 'isRunning') return true;
+      return true;
+    });
+    addTearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(methodChannel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockStreamHandler(eventChannel, null);
+    });
+
+    const s1 = ServerProfile(
+      id: 'srv-1',
+      displayName: 'Server 1',
+      protocol: 'vless',
+      source: ProfileSource.subscription,
+      serverAddress: '198.51.100.11',
+      serverPort: 443,
+      extraParams: <String, dynamic>{
+        'uuid': '00000000-0000-0000-0000-000000000001',
+      },
+    );
+    const s2 = ServerProfile(
+      id: 'srv-2',
+      displayName: 'Server 2',
+      protocol: 'vless',
+      source: ProfileSource.subscription,
+      serverAddress: '198.51.100.12',
+      serverPort: 443,
+      extraParams: <String, dynamic>{
+        'uuid': '00000000-0000-0000-0000-000000000002',
+      },
+    );
+
+    var s1Latency = 40;
+    final pingService = PingService(
+      customProber: (profile) async => profile.id == 'srv-1' ? s1Latency : 90,
+    );
+    final androidAdapter = AndroidVpnEngineAdapter(
+      methodChannel: methodChannel,
+      eventChannel: eventChannel,
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        connectionEngineProvider.overrideWithValue(androidAdapter),
+        pingServiceProvider.overrideWithValue(pingService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await container.read(profilesListProvider.notifier).addProfiles([s1, s2]);
+    final controller = container.read(connectionControllerProvider.notifier);
+    await controller.setSmartMode(true);
+    await controller.toggleConnection();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(connectionControllerProvider).isConnected, isTrue);
+    expect(container.read(connectionControllerProvider).activeProfile?.id,
+        equals('srv-1'));
+
+    // First failure flushes sockets via resetNetwork instead of immediate switch
+    s1Latency = -1;
+    await controller.checkSmartConnectionHealth();
+    expect(resetNetworkCalls, equals(1));
+    expect(container.read(connectionControllerProvider).activeProfile?.id,
+        equals('srv-1'));
+
+    // Second consecutive failure fails over to srv-2
+    await controller.checkSmartConnectionHealth();
+    expect(container.read(connectionControllerProvider).activeProfile?.id,
+        equals('srv-2'));
   });
 }
