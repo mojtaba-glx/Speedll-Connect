@@ -4,7 +4,7 @@
 - **نسخه برنامه:** `1.8.0 (Build 14)`
 - **موتور هسته:** `sing-box v1.14.4` (کتابخانه بومی `libbox.aar`)
 - **شناسه بسته:** `app.speedll.connect`
-- **وضعیت سلامت تست‌ها:** ۶۰ از ۶۰ تست واحد سبز (Dart: 47, Flutter: 13) | بدون هشدار Analyze
+- **وضعیت سلامت تست‌ها:** ۶۸ از ۶۸ تست واحد سبز (Dart: 51, Flutter: 17) | بدون هشدار Analyze
 
 ---
 
@@ -92,8 +92,8 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 
 | نام فایل | اندازه | چک‌سام SHA-256 |
 | :--- | :---: | :--- |
-| `Speedll-Connect-v1.8.0-arm64-v8a.apk` | ۳۵.۹۳ MB | `d7db3d675c72f9a0c1871f6edeacdfb9bb90334bbda85ad3b65e745ea279e2fe` |
-| `Speedll-Connect-v1.8.0-armeabi-v7a.apk` | ۳۵.۵۴ MB | `6a6d97662dc3f2dd7c0fb377c8b0ad2a30b7ab1a732152339a3dba5517fbe099` |
+| `Speedll-Connect-v1.8.0-arm64-v8a.apk` | ۳۵.۹۴ MB (۳۵٬۹۴۱٬۰۶۹ بایت) | `06489a64b6469aabc174f126d95070daf843280aabfa31746d751b80cc7e09b1` |
+| `Speedll-Connect-v1.8.0-armeabi-v7a.apk` | ۳۵.۵۵ MB (۳۵٬۵۵۲٬۹۹۴ بایت) | `16ae522c24d47d15e69aa13875f09154cf1b4ba45dded62464267a39b2f13931` |
 
 ### متادیتای استخراج‌شده با `aapt2 dump badging`:
 - `package: name='app.speedll.connect'`
@@ -111,13 +111,13 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 
 1. **پکیج اشتراک و مبدل کانفیگ (`packages/speedll_subscription`):**
    - تحلیل استاتیک: `dart analyze` — **No issues found!**
-   - تست‌های واحد: `dart test` — **47 از 47 تست پاس شد (All tests passed).**
-   - موارد آزموده‌شده: تولید ساختار Inbound و Outbound هسته sing-box 1.14، اعتبارسنجی ULA IPv6، MTU 9000، عدم وجود auto_redirect، اعتبارسنجی انواع لینک‌های VLESS، VMess، Trojan، Hysteria2، Shadowsocks و جلوگیری از حملات SSRF.
+   - تست‌های واحد: `dart test` — **51 از 51 تست پاس شد (All tests passed).**
+   - موارد آزموده‌شده: تولید ساختار Inbound و Outbound هسته sing-box 1.14، اعتبارسنجی ULA IPv6، MTU 9000، عدم وجود auto_redirect، پیش‌فرض خاموش بودن `enableTrafficSniffing` و اولویت `hijack-dns` قبل از `sniff` محدودشده به `['tls', 'http', 'quic']`، نبود `detour: direct` در تنظیمات DNS و پارس انواع سرورهای DNS (IP/Port/DoT/DoH/HTTP3/دامنه) و رد ورودی‌های نامعتبر، اعتبارسنجی انواع لینک‌های VLESS، VMess، Trojan، Hysteria2، Shadowsocks و جلوگیری از حملات SSRF.
 
 2. **اپلیکیشن اصلی (`app`):**
    - تحلیل استاتیک: `flutter analyze` — **No issues found!**
-   - تست‌های ویجت و منطق: `flutter test` — **13 از 13 تست پاس شد (All tests passed).**
-   - موارد آزموده‌شده: پایش سلامت Smart Mode با تایمر ۶۰ ثانیه‌ای، رندر صحیح رابط کاربری، استخراج اطلاعات اشتراک، سازگاری تم‌ها و بررسی نسخه `AppVersion.fullVersion == '1.8.0 (Build 14)'`.
+   - تست‌های ویجت و منطق: `flutter test` — **17 از 17 تست پاس شد (All tests passed).**
+   - موارد آزموده‌شده: پایش سلامت Smart Mode با تایمر ۶۰ ثانیه‌ای، مهاجرت پیش‌فرض Sniffing به خاموش در `SecureProfileStorage`، مخفی‌ماندن IP سرور و پینگ لحظه‌ای پیش از اتصال در صفحه خانه، نمایش دیالوگ انتخاب تم بلافاصله پس از تایید زبان در راه‌اندازی اولیه، اعتبارسنجی ورودی دستی DNS، رندر صحیح رابط کاربری، استخراج اطلاعات اشتراک، سازگاری تم‌ها و بررسی نسخه `AppVersion.fullVersion == '1.8.0 (Build 14)'`.
 
 ---
 
@@ -144,6 +144,8 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 6. `b737df3`: `docs(reports): add release 1.8.0 verification and test report`
 7. `0147e43`: `fix(engine): resolve routing loop, default route omission, and DNS deadlock on Android`
 8. `a797208`: `fix(engine): switch to gvisor stack, add port 53 dns hijack, and implement LocalResolver`
+9. `a52f50c`: `fix(engine): omit direct detour on DNS entries, scope sniffing after hijack-dns, and default sniffing off`
+10. `25a6778`: `feat(ui): gate disconnected ping/IP, add first-launch theme picker, and validate manual DNS`
 
 ---
 
@@ -192,4 +194,23 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 ### ۳. پیاده‌سازی `LocalResolver` و حل خطای `ERR-CORE-START`
 - **علت فنی:** در واسط پلتفرم اندروید (`LibboxPlatformInterface.kt`) متد `localDNSTransport()` مقدار `null` برمی‌گرداند. هنگامی که در کانفیگ سرور `dns-direct` از نوع `local` تعریف می‌شد یا نیاز به ریزالو دامنه‌های محلی بود، نبود پیاده‌سازی ترانسپورت DNS محلی باعث بروز خطای زمان شروع هسته (`ERR-CORE-START`) می‌شد. همچنین در صورت تنظیم سرور `8.8.8.8` برای دایرکت، به علت مسدودی UDP 53 این آی‌پی روی اینترنت ایران، راه‌اندازی با تایم‌اوت مواجه می‌شد.
 - **اصلاح:** کلاس بومی `LocalResolver` مطابق اینترفیس `LocalDNSTransport` ساخته شد و با استفاده از متد استاندارد `DefaultNetworkMonitor.defaultNetwork.getAllByName(domain)`، کوئری‌های دایرکت و محلی مستقیماً از طریق DNS اختصاصی سیم‌کارت/وای‌فای فیزیکی بدون هیچ‌گونه لوپ یا اختلال پاسخ داده می‌شوند. همچنین سرور `dns-remote` جهت پاسخ‌دهی سریع‌تر و پایدارتر درون تونل از نوع `udp` بر بستر پروتکل ایمن VLESS XUDP تنظیم گردید.
+
+---
+
+## ۱۳. رفع خطای دستکاری DNS (`ERR-CORE-START`)، تداخل Sniffing و بهبودهای رابط کاربری (کامیت‌های `a52f50c` و `25a6778`)
+
+### ۱. علت و رفع خطای `ERR-CORE-START` هنگام تغییر DNS مستقیم / دستی
+- **ریشه خطا (تأییدشده در `libbox.so v1.14.4`):** متد `SingboxConverter.buildDnsConfig` در ورودی‌های `dns-local` و `dns-direct` کلید `'detour': 'direct'` قرار می‌داد، در حالی که outbound با تگ `direct` از نوع خالی `{"type": "direct", "tag": "direct"}` است. کتابخانه هسته در `common/dialer.InitializeDetour` چنین پیکربندی‌ای را با پیام `"detour to an empty direct outbound makes no sense"` هنگام راه‌اندازی رد می‌کرد. پیش از این صرفاً حالت پیش‌فرض (`178.22.122.100` / `type: local`) به دلیل نوع `local` از مقداردهی Dialer عبور می‌کرد و تمام DNSهای دیگر (`8.8.8.8`، `1.1.1.1`، `185.51.200.2` و غیره) هنگام اتصال دچار کرش `ERR-CORE-START` می‌شدند. همچنین ورودی‌های با پورت، IPv6 یا URIهای DoT/DoH پشتیبانی ساختاریافته نداشتند.
+- **اصلاح:** کلید `'detour': 'direct'` به کلی از سرورهای DNS مستقیم و محلی حذف شد (فقط `dns-remote` غیرمحلی `'detour': 'proxy'` دارد). پارس و اعتبارسنجی کامل برای `local`، `IPv4/IPv6` با یا بدون پورت، دامنه (به همراه `'domain_resolver': 'dns-local'`) و طرح‌های `udp://`، `tcp://`، `tls://`، `https://` و `h3://` در `SingboxConverter` افزوده شد و دیالوگ DNS دستی در `SettingsPanel` پیش از ذخیره با `SingboxConverter.isValidDnsServer` اعتبارسنجی می‌شود.
+
+### ۲. رفع تداخل Sniffing با عبور دیتا و تغییر پیش‌فرض به خاموش
+- **ریشه مشکل:** در تنظیمات قبلی، `enableTrafficSniffing` به صورت پیش‌فرض `true` بود و قانون بدون قید `{"action": "sniff"}` در اندیس صفر `route.rules` **پیش از** قوانین `hijack-dns` قرار داشت و تمام اسنیفرهای `libbox` را با تایم‌اوت ۳۰۰ میلی‌ثانیه فعال می‌کرد.
+- **اصلاح:**
+  1. پیش‌فرض `enableTrafficSniffing` در `SingboxRoutingOptions` و `SecureProfileStorage` روی `false` (خاموش) قرار گرفت و برای ارتقا از نسخه‌های قبلی (`dnsDefaultsVersion < 3`) به صورت امن به `false` مهاجرت داده می‌شود (پس از ذخیره مجدد در نسخه `3`، تغییر دستی کاربر حفظ می‌گردد).
+  2. هنگام فعال بودن دستی Sniffing، قوانین `hijack-dns` (`dns-in`، `port: [53]`، `protocol: dns`) **ابتدا** در `route.rules` قرار می‌گیرند و قاعده `sniff` پس از آن‌ها با محدوده امن `'sniffer': ['tls', 'http', 'quic']` و `'timeout': '100ms'` صادر می‌شود.
+
+### ۳. بهبودهای رابط کاربری (صفحه خانه و راه‌اندازی اولیه)
+- **عدم نمایش IP سرور و پینگ لحظه‌ای پیش از اتصال:** در `HomeScreen` نمایش نشانگر IP سرور و بخش `Live Ping` (`SignalBarsIndicator`) مشروط به برقرار بودن اتصال (`isConnected == true`) شد تا تا پیش از اتصال کامل و در حالت قطع یا خطا نمایش داده نشوند.
+- **انتخاب تم پیش‌فرض پس از انتخاب زبان در نصب اول:** دیالوگ جدید `ThemeOnboardingDialog` بلافاصله پس از تایید `LanguageOnboardingDialog` باز شده و ۶ تم برنامه را با پیش‌نمایش زنده در زبان انتخاب‌شده به کاربر نمایش می‌دهد.
+- **نیازمند تست دستگاه واقعی:** صحت عملکرد اتصال کامل با هر دو حالت Sniffing روشن/خاموش و تغییر DNS روی شبکه واقعی باید روی گوشی اندرویدی بررسی شود.
 
