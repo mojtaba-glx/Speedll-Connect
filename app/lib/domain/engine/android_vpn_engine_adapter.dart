@@ -3,24 +3,42 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:speedll_subscription/speedll_subscription.dart';
 import '../connection/connection_phase.dart';
+import '../diagnostics/diagnostic_error_mapper.dart';
 import 'connection_engine.dart';
+
+const bool _nativeLibboxDefault = bool.fromEnvironment(
+  'SPEEDLL_NATIVE_LIBBOX',
+  defaultValue: true,
+);
 
 class AndroidVpnEngineAdapter implements ConnectionEngine {
   AndroidVpnEngineAdapter({
     MethodChannel? methodChannel,
     EventChannel? eventChannel,
     SingboxConverter? converter,
+    SingboxRoutingOptions routingOptions = const SingboxRoutingOptions(),
+    bool? useNativeLibbox,
   })  : _methodChannel = methodChannel ??
-            const MethodChannel('ir.speedll.speedll_connect/vpn'),
+            const MethodChannel('app.speedll.connect/vpn'),
         _eventChannel = eventChannel ??
-            const EventChannel('ir.speedll.speedll_connect/vpn_events'),
-        _converter = converter ?? const SingboxConverter() {
+            const EventChannel('app.speedll.connect/vpn_events'),
+        _converter = converter ?? const SingboxConverter(),
+        _routingOptions = routingOptions,
+        _useNativeLibbox = useNativeLibbox ?? _nativeLibboxDefault {
     _initEventListener();
   }
 
   final MethodChannel _methodChannel;
   final EventChannel _eventChannel;
   final SingboxConverter _converter;
+  final bool _useNativeLibbox;
+  SingboxRoutingOptions _routingOptions;
+
+  SingboxRoutingOptions get routingOptions => _routingOptions;
+
+  void updateRoutingOptions(SingboxRoutingOptions options) {
+    _routingOptions = options;
+  }
 
   final StreamController<ConnectionPhase> _phaseController =
       StreamController<ConnectionPhase>.broadcast();
@@ -28,16 +46,27 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
   ConnectionPhase _currentPhase = ConnectionPhase.disconnected;
   ConnectionPhase get currentPhase => _currentPhase;
 
+  DiagnosticReport? _lastDiagnosticReport;
+  DiagnosticReport? get lastDiagnosticReport => _lastDiagnosticReport;
+
   void _initEventListener() {
     _eventChannel.receiveBroadcastStream().listen(
       (dynamic event) {
         if (event is String) {
           final phase = _mapPhaseString(event);
+          if (phase == ConnectionPhase.failed) {
+            _lastDiagnosticReport = DiagnosticErrorMapper.fromCodeOrError(event);
+          } else if (phase == ConnectionPhase.connected ||
+              phase == ConnectionPhase.preparing) {
+            _lastDiagnosticReport = null;
+          }
           _currentPhase = phase;
           _phaseController.add(phase);
         }
       },
       onError: (dynamic error) {
+        _lastDiagnosticReport =
+            DiagnosticErrorMapper.fromCodeOrError(error ?? 'ERR-CONN-GENERAL');
         _currentPhase = ConnectionPhase.failed;
         _phaseController.add(ConnectionPhase.failed);
       },
@@ -45,12 +74,16 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
   }
 
   ConnectionPhase _mapPhaseString(String phaseStr) {
-    return switch (phaseStr.toLowerCase()) {
+    final normalized = phaseStr.trim().toLowerCase();
+    if (normalized.startsWith('failed')) {
+      return ConnectionPhase.failed;
+    }
+    return switch (normalized) {
       'preparing' => ConnectionPhase.preparing,
       'connecting' => ConnectionPhase.connecting,
       'connected' => ConnectionPhase.connected,
+      'reconnecting' => ConnectionPhase.reconnecting,
       'disconnecting' => ConnectionPhase.disconnecting,
-      'failed' => ConnectionPhase.failed,
       _ => ConnectionPhase.disconnected,
     };
   }
@@ -75,7 +108,17 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
     }
 
     try {
-      _converter.buildOutbound(profile);
+      if (_useNativeLibbox) {
+        _converter.buildAndroidLibboxConfig(
+          profile,
+          routingOptions: _routingOptions,
+        );
+      } else {
+        _converter.buildFullConfig(
+          profile,
+          routingOptions: _routingOptions,
+        );
+      }
       return EngineCapabilityReport(
         supported: true,
         reasons: const ['پروتکل و تنظیمات توسط هسته sing-box پشتیبانی می‌شود.'],
@@ -101,63 +144,17 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
       );
     }
 
-    final outbound = _converter.buildOutbound(profile);
+    final config = _useNativeLibbox
+        ? _converter.buildAndroidLibboxConfig(
+            profile,
+            routingOptions: _routingOptions,
+          )
+        : _converter.buildFullConfig(
+            profile,
+            routingOptions: _routingOptions,
+          );
 
-    // Complete sing-box configuration with TUN inbound and direct DNS
-    final fullConfig = <String, dynamic>{
-      'log': {
-        'level': 'info',
-        'timestamp': true,
-      },
-      'dns': {
-        'servers': [
-          {
-            'tag': 'dns-remote',
-            'address': 'https://1.1.1.1/dns-query',
-            'detour': 'proxy',
-          },
-          {
-            'tag': 'dns-direct',
-            'address': 'local',
-            'detour': 'direct',
-          }
-        ]
-      },
-      'inbounds': [
-        {
-          'type': 'tun',
-          'tag': 'tun-in',
-          'interface_name': 'tun0',
-          'inet4_address': '172.19.0.1/30',
-          'auto_route': false,
-          'strict_route': false,
-          'stack': 'system',
-          'sniff': true,
-        }
-      ],
-      'outbounds': [
-        outbound,
-        {
-          'type': 'direct',
-          'tag': 'direct',
-        },
-        {
-          'type': 'dns',
-          'tag': 'dns-out',
-        }
-      ],
-      'route': {
-        'rules': [
-          {
-            'protocol': 'dns',
-            'outbound': 'dns-out',
-          }
-        ],
-        'auto_detect_interface': true,
-      }
-    };
-
-    final configJson = jsonEncode(fullConfig);
+    final configJson = jsonEncode(config);
 
     try {
       _currentPhase = ConnectionPhase.preparing;
@@ -165,14 +162,21 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
 
       final success = await _methodChannel.invokeMethod<bool>(
         'requestPermissionAndStart',
-        <String, dynamic>{'config': configJson},
+        <String, dynamic>{
+          'config': configJson,
+          'killSwitch': _routingOptions.killSwitch,
+          'nativeLibbox': _useNativeLibbox,
+        },
       );
 
       if (success != true) {
+        _lastDiagnosticReport =
+            DiagnosticErrorMapper.fromCodeOrError('ERR-VPN-PERMISSION');
         _currentPhase = ConnectionPhase.failed;
         _phaseController.add(ConnectionPhase.failed);
       }
     } catch (e) {
+      _lastDiagnosticReport = DiagnosticErrorMapper.fromCodeOrError(e);
       _currentPhase = ConnectionPhase.failed;
       _phaseController.add(ConnectionPhase.failed);
       rethrow;
@@ -188,6 +192,16 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
     } catch (e) {
       _currentPhase = ConnectionPhase.failed;
       _phaseController.add(ConnectionPhase.failed);
+    }
+  }
+
+  /// Launches the native Android system VPN settings screen (Always-on VPN).
+  Future<bool> openVpnSettings() async {
+    try {
+      final res = await _methodChannel.invokeMethod<bool>('openVpnSettings');
+      return res ?? false;
+    } catch (_) {
+      return false;
     }
   }
 }

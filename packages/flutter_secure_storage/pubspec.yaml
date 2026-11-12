@@ -1,0 +1,12 @@
+name: flutter_secure_storage
+description: Secure storage bridge backed by Android Keystore AES-256-GCM hardware-backed encryption for Speedll Connect.
+version: 9.2.2
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  ffi: ^2.1.2

@@ -41,4 +41,19 @@ secrets/
 Thumbs.db
 Desktop.ini
 *.apk
+*.exe
 build/
+
+# Android release signing
+key.properties
+app/android/key.properties
+
+# Large Android runtime dependency, fetched by scripts/fetch_libbox_aar.sh
+app/android/app/libs/libbox.aar
+app/android/app/libs/libbox.aar.download
+*.aar
+
+# Local Windows host build artifacts
+platform/windows/host/speedll_windows_host
+platform/windows/host/speedll_windows_host.exe
+Speedll-Connect-Windows-*.exe

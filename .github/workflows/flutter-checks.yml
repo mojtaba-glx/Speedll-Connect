@@ -4,25 +4,71 @@ on:
   push:
     paths:
       - 'app/**'
+      - 'packages/**'
+      - 'scripts/**'
       - '.github/workflows/flutter-checks.yml'
   pull_request:
     paths:
       - 'app/**'
+      - 'packages/**'
+      - 'scripts/**'
       - '.github/workflows/flutter-checks.yml'
 
 jobs:
   analyze-and-test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: app
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.24.5'
           channel: stable
           cache: true
-      - run: flutter --version
-      - run: flutter pub get
-      - run: flutter analyze
-      - run: flutter test
+      - name: Resolve app dependencies
+        working-directory: app
+        run: |
+          flutter --version
+          flutter pub get
+      - name: Analyze and test app
+        working-directory: app
+        run: |
+          flutter analyze
+          flutter test
+      - name: Analyze and test subscription package
+        working-directory: packages/speedll_subscription
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+      - name: Analyze secure storage package
+        working-directory: packages/flutter_secure_storage
+        run: |
+          flutter pub get
+          flutter analyze
+
+  android-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+      - name: Cache libbox AAR
+        uses: actions/cache@v4
+        with:
+          path: app/android/app/libs/libbox.aar
+          key: libbox-aar-1.14.4
+      - name: Fetch libbox AAR
+        run: scripts/fetch_libbox_aar.sh
+      - name: Resolve app dependencies
+        working-directory: app
+        run: flutter pub get
+      - name: Build Android debug APK
+        working-directory: app
+        run: flutter build apk --debug

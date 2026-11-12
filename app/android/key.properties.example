@@ -1,0 +1,6 @@
+# Copy this file to key.properties and fill in real values.
+# Never commit key.properties or the referenced keystore file.
+storeFile=keystore/speedll-release.jks
+storePassword=CHANGE_ME
+keyAlias=speedll
+keyPassword=CHANGE_ME

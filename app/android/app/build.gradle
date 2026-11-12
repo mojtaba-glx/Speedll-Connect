@@ -4,8 +4,22 @@ plugins {
     id "dev.flutter.flutter-gradle-plugin"
 }
 
+def keystorePropertiesFile = rootProject.file("key.properties")
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+def isReleaseTask = gradle.startParameter.taskNames.any { it.toLowerCase().contains("release") }
+if (isReleaseTask && !keystorePropertiesFile.exists() && !project.hasProperty("allowDebugRelease")) {
+    throw new GradleException(
+        "Release signing is not configured. Create app/android/key.properties from key.properties.example " +
+        "or pass -PallowDebugRelease=true for a non-publishable debug-signed build."
+    )
+}
+
 android {
-    namespace = "ir.speedll.speedll_connect_app"
+    namespace = "app.speedll.connect"
     compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
@@ -19,20 +33,50 @@ android {
     }
 
     defaultConfig {
-        applicationId = "ir.speedll.speedll_connect_app"
+        applicationId = "app.speedll.connect"
         minSdk = 24
         targetSdk = 35
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (keystorePropertiesFile.exists()) {
+            release {
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+                storeFile = rootProject.file(keystoreProperties["storeFile"])
+                storePassword = keystoreProperties["storePassword"]
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.debug
+            debuggable false
+            minifyEnabled false
+            shrinkResources false
+            signingConfig = keystorePropertiesFile.exists()
+                ? signingConfigs.release
+                : signingConfigs.debug
         }
     }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    implementation fileTree(dir: "libs", include: ["*.jar"])
+    implementation files("libs/libbox.aar")
 }

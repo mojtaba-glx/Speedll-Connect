@@ -25,7 +25,7 @@ for file in pubspec.yaml analysis_options.yaml lib/main.dart test/widget_test.da
 done
 
 cd "$APP_DIR"
-flutter create --org ir.speedll --project-name speedll_connect_app \
+flutter create --org app.speedll --project-name speedll_connect_app \
   --platforms=android,ios,windows,macos,linux .
 
 echo "Flutter host folders generated. Hand-written app files restored. Review git diff."

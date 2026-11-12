@@ -17,7 +17,7 @@ try {
 
     Push-Location $AppDir
     try {
-        flutter create --org ir.speedll --project-name speedll_connect_app --platforms=android,ios,windows,macos,linux .
+        flutter create --org app.speedll --project-name speedll_connect_app --platforms=android,ios,windows,macos,linux .
         if ($LASTEXITCODE -ne 0) { throw "flutter create failed with exit code $LASTEXITCODE" }
     }
     finally {
