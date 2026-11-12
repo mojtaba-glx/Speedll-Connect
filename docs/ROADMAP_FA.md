@@ -86,11 +86,15 @@
 - [x] انتخاب سرور و فهرست پروفایل‌ها (SelectServerDialog)
 - [x] پشتیبانی تغییر Wi-Fi/mobile و بازیابی کنترل‌شده (DefaultNetworkMonitor + libbox با بازراه‌اندازی کنترل‌شده هسته و وضعیت `reconnecting`)
 - [x] نمایش پیام خطای قابل فهم و کد تشخیصی بدون secret (DiagnosticErrorMapper با پالایش خودکار UUID، IP، توکن و رمزها)
-- [ ] تست Android API/ABIهای مصوب
-- [ ] تست battery، background، reboot و crash recovery
-- [ ] تست مقایسه‌ای باتری (1 ساعت صفحه خاموش + 1 ساعت استفاده) با dumpsys batterystats روی حداقل 2 دستگاه
-- [ ] تست نشت IPv6/DNS روی Android
-- [ ] تست auto-connect پس از تغییر Wi-Fi ↔ موبایل
+- [x] بسته‌بندی release و فشرده‌سازی APK (تنظیم jniLibs.useLegacyPackaging = true، کاهش حجم به ~35MB، فشرده‌سازی deflated در libbox.so، فعال‌سازی R8 و ProGuard)
+- [x] پیشگیری از نشت حافظه و Activity در چرخه عمر (تنظیم statusCallback و eventSink به null هنگام onDestroy در MainActivity)
+- [x] آیکون‌های بومی کامل و یکپارچه (adaptive icon، آیکون تک‌رنگ اندروید 13+، آیکون نوتیفیکیشن اختصاصی ic_stat_speedll و آیکون‌های همه پلتفرم‌ها)
+- [x] امضای رسمی معتبر با تطابق کامل اثرانگشت گواهی نسخه 1.7.1 و ثبت خروجی در release-test/
+- [ ] تست Android API/ABIهای مصوب (پیاده‌سازی شد، نیازمند تست دستگاه)
+- [ ] تست battery، background، reboot و crash recovery (بهینه‌سازی تایمر 60 ثانیه‌ای و کاهش sampling پیاده‌سازی شد، نیازمند تست دستگاه)
+- [ ] تست مقایسه‌ای باتری (1 ساعت صفحه خاموش + 1 ساعت استفاده) با dumpsys batterystats روی حداقل 2 دستگاه (پیاده‌سازی شد، نیازمند تست دستگاه)
+- [ ] تست نشت IPv6/DNS روی Android (کانفیگ IPv6 ULA و حذف setMetered پیاده‌سازی شد، نیازمند تست دستگاه)
+- [ ] تست auto-connect پس از تغییر Wi-Fi ↔ موبایل (پیاده‌سازی شد، نیازمند تست دستگاه)
 
 **معیار خروج:** اتصال واقعی و پایدار به سرور آزمایشی، قطع واقعی اتصال، بازیابی، تست نشت و QA روی حداقل دو دستگاه/نسخه Android.
 
