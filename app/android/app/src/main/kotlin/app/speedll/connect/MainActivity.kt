@@ -21,15 +21,11 @@ class MainActivity : FlutterActivity() {
         private const val VPN_REQUEST_CODE = 2001
         private const val QR_SCAN_REQUEST_CODE = 2002
         private const val NOTIFICATION_PERMISSION_REQUEST_CODE = 2003
-
-        @Volatile
-        private var lastStartedNativeLibbox: Boolean? = null
     }
 
     private var eventSink: EventChannel.EventSink? = null
     private var pendingConfigJson: String? = null
     private var pendingKillSwitch: Boolean = false
-    private var pendingNativeLibbox: Boolean = true
     private var pendingResult: MethodChannel.Result? = null
     private var pendingQrResult: MethodChannel.Result? = null
     private lateinit var secureStorage: AndroidKeystoreSecureStorage
@@ -48,13 +44,11 @@ class MainActivity : FlutterActivity() {
                             eventSink?.success(phase)
                         }
                     }
-                    SpeedllVpnService.statusCallback = callback
                     LibboxVpnService.statusCallback = callback
                 }
 
                 override fun onCancel(arguments: Any?) {
                     eventSink = null
-                    SpeedllVpnService.statusCallback = null
                     LibboxVpnService.statusCallback = null
                 }
             })
@@ -147,7 +141,6 @@ class MainActivity : FlutterActivity() {
                     "requestPermissionAndStart" -> {
                         val configJson = call.argument<String>("config")
                         val killSwitch = call.argument<Boolean>("killSwitch") ?: false
-                        val nativeLibbox = call.argument<Boolean>("nativeLibbox") ?: true
                         if (configJson.isNullOrEmpty()) {
                             result.error("INVALID_CONFIG", "کانفیگ ارسالی خالی است", null)
                             return@setMethodCallHandler
@@ -157,12 +150,11 @@ class MainActivity : FlutterActivity() {
                         if (prepareIntent != null) {
                             pendingConfigJson = configJson
                             pendingKillSwitch = killSwitch
-                            pendingNativeLibbox = nativeLibbox
                             pendingResult = result
                             startActivityForResult(prepareIntent, VPN_REQUEST_CODE)
                         } else {
                             requestNotificationPermissionIfNeeded()
-                            startVpnService(configJson, killSwitch, nativeLibbox)
+                            startVpnService(configJson, killSwitch)
                             result.success(true)
                         }
                     }
@@ -171,9 +163,7 @@ class MainActivity : FlutterActivity() {
                         result.success(true)
                     }
                     "isRunning" -> {
-                        result.success(
-                            LibboxVpnService.isRunning || SpeedllVpnService.isRunning
-                        )
+                        result.success(LibboxVpnService.isRunning)
                     }
                     "openVpnSettings" -> {
                         try {
@@ -206,21 +196,11 @@ class MainActivity : FlutterActivity() {
     private fun startVpnService(
         configJson: String,
         killSwitch: Boolean,
-        nativeLibbox: Boolean,
     ) {
-        lastStartedNativeLibbox = nativeLibbox
-        val intent = if (nativeLibbox) {
-            Intent(this, LibboxVpnService::class.java).apply {
-                action = LibboxVpnService.ACTION_START
-                putExtra(LibboxVpnService.EXTRA_CONFIG, configJson)
-                putExtra(LibboxVpnService.EXTRA_KILL_SWITCH, killSwitch)
-            }
-        } else {
-            Intent(this, SpeedllVpnService::class.java).apply {
-                action = SpeedllVpnService.ACTION_START
-                putExtra(SpeedllVpnService.EXTRA_CONFIG, configJson)
-                putExtra(SpeedllVpnService.EXTRA_KILL_SWITCH, killSwitch)
-            }
+        val intent = Intent(this, LibboxVpnService::class.java).apply {
+            action = LibboxVpnService.ACTION_START
+            putExtra(LibboxVpnService.EXTRA_CONFIG, configJson)
+            putExtra(LibboxVpnService.EXTRA_KILL_SWITCH, killSwitch)
         }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             startForegroundService(intent)
@@ -230,20 +210,8 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun stopVpnService() {
-        when (lastStartedNativeLibbox) {
-            true -> sendStopAction(LibboxVpnService::class.java, LibboxVpnService.ACTION_STOP)
-            false -> sendStopAction(SpeedllVpnService::class.java, SpeedllVpnService.ACTION_STOP)
-            null -> {
-                sendStopAction(LibboxVpnService::class.java, LibboxVpnService.ACTION_STOP)
-                sendStopAction(SpeedllVpnService::class.java, SpeedllVpnService.ACTION_STOP)
-            }
-        }
-        lastStartedNativeLibbox = null
-    }
-
-    private fun sendStopAction(serviceClass: Class<*>, action: String) {
-        val intent = Intent(this, serviceClass).apply {
-            this.action = action
+        val intent = Intent(this, LibboxVpnService::class.java).apply {
+            action = LibboxVpnService.ACTION_STOP
         }
         startService(intent)
     }
@@ -255,7 +223,7 @@ class MainActivity : FlutterActivity() {
                 val config = pendingConfigJson
                 if (config != null) {
                     requestNotificationPermissionIfNeeded()
-                    startVpnService(config, pendingKillSwitch, pendingNativeLibbox)
+                    startVpnService(config, pendingKillSwitch)
                     pendingResult?.success(true)
                 } else {
                     pendingResult?.error("CONFIG_LOST", "کانفیگ یافت نشد", null)
@@ -265,7 +233,6 @@ class MainActivity : FlutterActivity() {
             }
             pendingConfigJson = null
             pendingKillSwitch = false
-            pendingNativeLibbox = true
             pendingResult = null
         } else if (requestCode == QR_SCAN_REQUEST_CODE) {
             val qrResult = pendingQrResult

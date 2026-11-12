@@ -6,32 +6,24 @@ import '../connection/connection_phase.dart';
 import '../diagnostics/diagnostic_error_mapper.dart';
 import 'connection_engine.dart';
 
-const bool _nativeLibboxDefault = bool.fromEnvironment(
-  'SPEEDLL_NATIVE_LIBBOX',
-  defaultValue: true,
-);
-
 class AndroidVpnEngineAdapter implements ConnectionEngine {
   AndroidVpnEngineAdapter({
     MethodChannel? methodChannel,
     EventChannel? eventChannel,
     SingboxConverter? converter,
     SingboxRoutingOptions routingOptions = const SingboxRoutingOptions(),
-    bool? useNativeLibbox,
   })  : _methodChannel = methodChannel ??
             const MethodChannel('app.speedll.connect/vpn'),
         _eventChannel = eventChannel ??
             const EventChannel('app.speedll.connect/vpn_events'),
         _converter = converter ?? const SingboxConverter(),
-        _routingOptions = routingOptions,
-        _useNativeLibbox = useNativeLibbox ?? _nativeLibboxDefault {
+        _routingOptions = routingOptions {
     _initEventListener();
   }
 
   final MethodChannel _methodChannel;
   final EventChannel _eventChannel;
   final SingboxConverter _converter;
-  final bool _useNativeLibbox;
   SingboxRoutingOptions _routingOptions;
 
   SingboxRoutingOptions get routingOptions => _routingOptions;
@@ -108,17 +100,10 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
     }
 
     try {
-      if (_useNativeLibbox) {
-        _converter.buildAndroidLibboxConfig(
-          profile,
-          routingOptions: _routingOptions,
-        );
-      } else {
-        _converter.buildFullConfig(
-          profile,
-          routingOptions: _routingOptions,
-        );
-      }
+      _converter.buildAndroidLibboxConfig(
+        profile,
+        routingOptions: _routingOptions,
+      );
       return EngineCapabilityReport(
         supported: true,
         reasons: const ['پروتکل و تنظیمات توسط هسته sing-box پشتیبانی می‌شود.'],
@@ -144,15 +129,10 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
       );
     }
 
-    final config = _useNativeLibbox
-        ? _converter.buildAndroidLibboxConfig(
-            profile,
-            routingOptions: _routingOptions,
-          )
-        : _converter.buildFullConfig(
-            profile,
-            routingOptions: _routingOptions,
-          );
+    final config = _converter.buildAndroidLibboxConfig(
+      profile,
+      routingOptions: _routingOptions,
+    );
 
     final configJson = jsonEncode(config);
 
@@ -165,7 +145,6 @@ class AndroidVpnEngineAdapter implements ConnectionEngine {
         <String, dynamic>{
           'config': configJson,
           'killSwitch': _routingOptions.killSwitch,
-          'nativeLibbox': _useNativeLibbox,
         },
       );
 

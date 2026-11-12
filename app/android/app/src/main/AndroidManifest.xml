@@ -15,8 +15,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
-        android:fullBackupContent="false"
-        android:extractNativeLibs="true">
+        android:fullBackupContent="false">
 
         <activity
             android:name=".MainActivity"
@@ -42,19 +41,6 @@
             android:exported="false"
             android:screenOrientation="portrait"
             android:theme="@android:style/Theme.Material.NoActionBar" />
-
-        <service
-            android:name=".SpeedllVpnService"
-            android:permission="android.permission.BIND_VPN_SERVICE"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <intent-filter>
-                <action android:name="android.net.VpnService"/>
-            </intent-filter>
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="vpn" />
-        </service>
 
         <service
             android:name=".LibboxVpnService"
