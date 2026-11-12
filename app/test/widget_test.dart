@@ -278,7 +278,7 @@ void main() {
       final palette = SpeedllThemePalette.of(preset);
       expect(palette.backgroundGradient.length, greaterThanOrEqualTo(3));
     }
-    expect(AppVersion.fullVersion, equals('1.7.1 (Build 13)'));
+    expect(AppVersion.fullVersion, equals('1.8.0 (Build 14)'));
 
     final winAdapter = WindowsVpnEngineAdapter(useTunAdapter: true);
     final desktopConfig =

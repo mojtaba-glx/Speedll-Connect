@@ -2,23 +2,32 @@
 
 All notable changes to Speedll Connect will be documented here.
 
-## [1.7.2] - 2026-11-12
+## [1.8.0] - 2026-11-12
 
-- **Migration to Native Libbox TUN (ADR 0003):** Completely decommissioned legacy `SpeedllVpnService`, `Tun2SocksBridge`, and standalone `libsingbox.so` binaries in `jniLibs`, cutting APK size by >150MB and eliminating userspace packet bridging battery drain.
+- **Migration to Native Libbox TUN (sing-box v1.14.4):** Completely decommissioned legacy `SpeedllVpnService`, `Tun2SocksBridge`, and standalone `libsingbox.so` binaries in `jniLibs`, cutting APK size by >150MB and eliminating userspace packet bridging battery drain.
+- **APK Compression & Size Reduction:**
+  - Enabled legacy packaging (`packaging.jniLibs.useLegacyPackaging = true`) in Gradle to compress (deflate) `libbox.so` inside the APK, shrinking the release APK from ~94MB down to ~34MB on `arm64-v8a` (~62% reduction) and ~85MB to ~34MB on `armeabi-v7a` (~58% reduction).
+  - Provided reproducible minimal libbox build script at `scripts/build_libbox_minimal.sh`.
+- **Platform Branding & Custom Icons:**
+  - Added complete brand identity icons across all platforms (Android adaptive anydpi-v26, monochrome themed icon, roundIcon, legacy mipmaps; iOS AppIcon without alpha channel; macOS AppIcon and ICNS; Windows multi-resolution ICO 16-256px; Linux PNG icons and .desktop launcher).
+  - Replaced system warning icon with custom monochrome vector notification icon (`ic_stat_speedll`) in `LibboxVpnService`.
+  - Added master `app/assets/branding/app_icon.png` (1024x1024) for in-app About and branding displays.
 - **Network & Battery Optimizations:**
   - Removed `setMetered(false)` in `openTun` to correctly inherit metered network status from the underlying active connection.
   - Added IPv6 ULA address (`fdfe:dcba:9876::1/126`) alongside IPv4 (`172.19.0.1/30`) to the native TUN inbound to prevent IPv6 traffic leakage.
+  - Standardized `buildAndroidLibboxConfig` API with typed `List<String> tunAddresses`.
   - Set default TUN MTU to 9000 (matching SFA recommendations).
   - Removed redundant root-only `auto_redirect` from TUN configuration and service override options.
   - Streamlined smux multiplexing parameters with `padding: false` and removed `min_streams`.
-- **Health Checks & Background Timers:**
+- **Health Checks & Stability:**
   - Increased `_smartHealthTimer` interval from 10s to 60s (`_smartHealthInterval`) with optional constructor injection.
-  - Reduced sample count for background Smart health checks from 3 to 1 while keeping default 3-sample latency probing for UI interactions.
-- **Release Hardening & APK Optimization:**
-  - Enabled R8 minification (`minifyEnabled true`), resource shrinking (`shrinkResources true`), and keep rules in `proguard-rules.pro` for libbox, Go runtime, app, and ZXing.
+  - Reduced sample count for background Smart health checks from 3 to 1 while preserving 3-sample latency probing for UI interactions.
+  - Prevented Activity leaks in `MainActivity` by nulling out `LibboxVpnService.statusCallback` on destroy.
+- **Release Hardening:**
+  - Enabled R8 minification (`minifyEnabled true`), resource shrinking (`shrinkResources true`), and ProGuard keep rules for libbox, Go runtime, app, and ZXing.
   - Added ABI filters to target only `arm64-v8a` and `armeabi-v7a`.
   - Guarded debug crash triggers and verbose logging strictly behind `BuildConfig.DEBUG`.
-  - Added `flutter build apk --release --split-per-abi` release packaging instructions.
+- **Version Harmonization:** Consolidated versioning to 1.8.0 (Build 14).
 
 ## [1.7.1] - 2026-11-12
 
