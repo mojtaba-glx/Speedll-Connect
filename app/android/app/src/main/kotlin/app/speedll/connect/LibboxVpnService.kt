@@ -338,7 +338,7 @@ class LibboxVpnService : VpnService(), CommandServerHandler {
         return builder
             .setContentTitle("Speedll Connect")
             .setContentText(statusText)
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setSmallIcon(R.drawable.ic_stat_speedll)
             .setContentIntent(contentPendingIntent)
             .addAction(
                 android.R.drawable.ic_menu_close_clear_cancel,

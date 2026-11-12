@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Speedll Connect
+Comment=Secure VPN
+Exec=speedll-connect
+Icon=speedll-connect
+Categories=Network;
+Terminal=false
