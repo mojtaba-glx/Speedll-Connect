@@ -253,6 +253,8 @@ final connectionControllerProvider =
 });
 
 class ConnectionController extends StateNotifier<ConnectionUiState> {
+  static const Duration _smartHealthInterval = Duration(seconds: 60);
+
   ConnectionController({
     required this.engine,
     required this.storage,
@@ -263,9 +265,11 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
     required List<ServerProfile> Function() readProfiles,
     required List<SubscriptionSource> Function() readSubscriptions,
     Duration periodicRefreshInterval = const Duration(hours: 6),
+    Duration smartHealthInterval = _smartHealthInterval,
   })  : _readProfiles = readProfiles,
         _readSubscriptions = readSubscriptions,
         _periodicRefreshInterval = periodicRefreshInterval,
+        _activeSmartHealthInterval = smartHealthInterval,
         super(const ConnectionUiState()) {
     _subscription = engine.connectionPhases.listen((phase) {
       final previousPhase = state.phase;
@@ -364,6 +368,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
   int _smartFailoverAttempts = 0;
   bool _isCheckingSmartHealth = false;
   final Duration _periodicRefreshInterval;
+  final Duration _activeSmartHealthInterval;
 
   Future<void> _initPersistedState() async {
     var routingOptions = await storage.loadRoutingOptions();
@@ -488,10 +493,10 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
   }
 
   /// Measures the real TCP ping of the currently active profile and updates [ConnectionUiState.livePingMs].
-  Future<int?> pingActiveProfile() async {
+  Future<int?> pingActiveProfile({int samples = 3}) async {
     final active = state.activeProfile;
     if (active == null) return null;
-    final ms = await pingService.measurePingMs(active, samples: 3);
+    final ms = await pingService.measurePingMs(active, samples: samples);
     if (!mounted) return ms;
 
     final updatedMap = <String, int>{
@@ -905,7 +910,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
   void _startSmartHealthMonitor() {
     _smartHealthTimer?.cancel();
     if (Platform.environment.containsKey('FLUTTER_TEST')) return;
-    _smartHealthTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+    _smartHealthTimer = Timer.periodic(_activeSmartHealthInterval, (_) {
       unawaited(checkSmartConnectionHealth());
     });
   }
@@ -927,7 +932,7 @@ class ConnectionController extends StateNotifier<ConnectionUiState> {
 
     _isCheckingSmartHealth = true;
     try {
-      final ms = await pingActiveProfile();
+      final ms = await pingActiveProfile(samples: 1);
       if (!mounted || !state.isConnected || !state.isSmartMode) return;
 
       final isUnhealthy = ms == null || ms <= 0 || ms > 1800;
