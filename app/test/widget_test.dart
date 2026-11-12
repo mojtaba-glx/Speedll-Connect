@@ -243,7 +243,7 @@ void main() {
   });
 
   test(
-      'PingService skips 127.0.0.1 subscription info nodes and ThemePresets + AppVersion v1.4.0 are valid',
+      'PingService skips 127.0.0.1 subscription info nodes and ThemePresets + AppVersion are valid',
       () {
     const infoNode = ServerProfile(
       id: 'info-01',

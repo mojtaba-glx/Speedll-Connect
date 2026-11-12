@@ -40,19 +40,17 @@ flutter build apk --debug
 
 فایل `app/android/app/libs/libbox.aar` به دلیل حجم بیش از ۱۰۰ مگابایت در git نگهداری نمی‌شود؛ پیش از هر بیلد اندروید اسکریپت بالا باید یک بار اجرا شود.
 
-## بیلد هسته بومی و مسیر پیش‌فرض
+## بیلد هسته بومی و مسیر استاندارد
 
-APK اندروید با `app.speedll.connect` برای تست هسته بومی لینگ‌بوکس ساخته می‌شود:
+APK اندروید با شناسه `app.speedll.connect` و با استفاده از هسته بومی libbox ساخته می‌شود:
 
 ```bash
 cd app
 flutter build apk --release
-flutter build apk --release --dart-define=SPEEDLL_NATIVE_LIBBOX=false
 ```
 
-- پیش‌فرض Dart در `AndroidVpnEngineAdapter` مسیر بومی (`libbox`) را فعال می‌کند.
-- با `--dart-define=SPEEDLL_NATIVE_LIBBOX=false` از مسیر قدیمی `SpeedllVpnService` استفاده می‌شود.
-- برای تست مقایسه‌ای باتری، فایل release بومی و legacy به‌ترتیب از روی دستگاه یک‌بار نصب و پیدا می‌شوند.
+- مسیر قدیمی و پرمصرف legacy (`SpeedllVpnService`, `Tun2SocksBridge` و باینری‌های مجزای `jniLibs`) در نسخه ۱.۸.۰ به‌طور کامل حذف شده است.
+- برای انجام تست‌های مقایسه‌ای باتری و ارزیابی تفاوت عملکرد، نسخه مبنا (Baseline) فایل `Speedll-Connect-v1.7.1.apk` در ریشه مخزن است.
 
 ## روش انتشار رسمی (Release Distribution)
 

@@ -109,7 +109,7 @@ void main() {
 
       final config = converter.buildAndroidLibboxConfig(
         wireguardProfile,
-        tunAddress: '172.20.0.1/30',
+        tunAddresses: const <String>['172.20.0.1/30'],
         mtu: 1380,
         stack: 'gvisor',
       );

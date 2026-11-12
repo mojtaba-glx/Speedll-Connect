@@ -293,7 +293,6 @@ class SingboxConverter {
   Map<String, dynamic> buildAndroidLibboxConfig(
     ServerProfile profile, {
     SingboxRoutingOptions routingOptions = const SingboxRoutingOptions(),
-    dynamic tunAddress,
     List<String> tunAddresses = const <String>[
       '172.19.0.1/30',
       'fdfe:dcba:9876::1/126',
@@ -310,15 +309,6 @@ class SingboxConverter {
         .where((rule) => rule['inbound'] != 'dns-in')
         .toList(growable: false);
 
-    final List<String> addresses;
-    if (tunAddress is String) {
-      addresses = <String>[tunAddress];
-    } else if (tunAddress is List<String>) {
-      addresses = tunAddress;
-    } else {
-      addresses = tunAddresses;
-    }
-
     return <String, dynamic>{
       'log': <String, dynamic>{
         'level': 'warn',
@@ -333,7 +323,7 @@ class SingboxConverter {
         <String, dynamic>{
           'type': 'tun',
           'tag': 'tun-in',
-          'address': addresses,
+          'address': tunAddresses,
           'mtu': mtu,
           'auto_route': true,
           'stack': stack,

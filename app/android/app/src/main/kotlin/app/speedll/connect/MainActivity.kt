@@ -250,4 +250,10 @@ class MainActivity : FlutterActivity() {
             }
         }
     }
+
+    override fun onDestroy() {
+        LibboxVpnService.statusCallback = null
+        eventSink = null
+        super.onDestroy()
+    }
 }
