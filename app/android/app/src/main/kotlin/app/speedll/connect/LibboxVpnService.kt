@@ -150,7 +150,7 @@ class LibboxVpnService : VpnService(), CommandServerHandler {
             Libbox.checkConfig(configJson)
             server.startOrReloadService(
                 configJson,
-                OverrideOptions().apply { autoRedirect = true },
+                OverrideOptions(),
             )
 
             if (stopping) {
@@ -257,7 +257,7 @@ class LibboxVpnService : VpnService(), CommandServerHandler {
             try {
                 server.startOrReloadService(
                     config,
-                    OverrideOptions().apply { autoRedirect = true },
+                    OverrideOptions(),
                 )
                 updateStatus("connected")
                 updateNotification("اتصال برقرار است")

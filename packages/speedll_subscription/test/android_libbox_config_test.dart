@@ -27,10 +27,13 @@ void main() {
       final tun = inbounds.single;
       expect(tun['type'], equals('tun'));
       expect(tun['tag'], equals('tun-in'));
-      expect(tun['address'], equals(<String>['172.19.0.1/30']));
-      expect(tun['mtu'], equals(1500));
+      expect(
+        tun['address'],
+        equals(<String>['172.19.0.1/30', 'fdfe:dcba:9876::1/126']),
+      );
+      expect(tun['mtu'], equals(9000));
       expect(tun['auto_route'], isTrue);
-      expect(tun['auto_redirect'], isTrue);
+      expect(tun.containsKey('auto_redirect'), isFalse);
       expect(tun['stack'], equals('mixed'));
       expect(tun['dns_mode'], equals('hijack'));
       expect(
@@ -121,6 +124,22 @@ void main() {
             .where((outbound) => (outbound as Map)['tag'] == 'proxy'),
         isEmpty,
       );
+    });
+
+    test('configures multiplex with padding=false and no min_streams', () {
+      final config = converter.buildAndroidLibboxConfig(
+        profile,
+        routingOptions: const SingboxRoutingOptions(enableMux: true),
+      );
+      final proxy =
+          (config['outbounds'] as List).first as Map<String, dynamic>;
+      final multiplex = proxy['multiplex'] as Map<String, dynamic>;
+
+      expect(multiplex['enabled'], isTrue);
+      expect(multiplex['protocol'], equals('smux'));
+      expect(multiplex['max_connections'], equals(4));
+      expect(multiplex['padding'], isFalse);
+      expect(multiplex.containsKey('min_streams'), isFalse);
     });
   });
 }

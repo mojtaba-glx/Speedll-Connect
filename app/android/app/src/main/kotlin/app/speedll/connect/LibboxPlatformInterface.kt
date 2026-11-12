@@ -65,10 +65,6 @@ class LibboxPlatformInterface(
             .setSession("Speedll Connect")
             .setMtu(options.mtu)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            builder.setMetered(false)
-        }
-
         if (service.isKillSwitchEnabled || options.strictRoute) {
             try {
                 builder.setBlocking(true)

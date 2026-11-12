@@ -293,8 +293,12 @@ class SingboxConverter {
   Map<String, dynamic> buildAndroidLibboxConfig(
     ServerProfile profile, {
     SingboxRoutingOptions routingOptions = const SingboxRoutingOptions(),
-    String tunAddress = '172.19.0.1/30',
-    int mtu = 1500,
+    dynamic tunAddress,
+    List<String> tunAddresses = const <String>[
+      '172.19.0.1/30',
+      'fdfe:dcba:9876::1/126',
+    ],
+    int mtu = 9000,
     String stack = 'mixed',
   }) {
     final isWireguard = profile.protocol.toLowerCase() == 'wireguard';
@@ -305,6 +309,15 @@ class SingboxConverter {
     final routeRules = buildRoutingRules(routingOptions)
         .where((rule) => rule['inbound'] != 'dns-in')
         .toList(growable: false);
+
+    final List<String> addresses;
+    if (tunAddress is String) {
+      addresses = <String>[tunAddress];
+    } else if (tunAddress is List<String>) {
+      addresses = tunAddress;
+    } else {
+      addresses = tunAddresses;
+    }
 
     return <String, dynamic>{
       'log': <String, dynamic>{
@@ -320,10 +333,9 @@ class SingboxConverter {
         <String, dynamic>{
           'type': 'tun',
           'tag': 'tun-in',
-          'address': <String>[tunAddress],
+          'address': addresses,
           'mtu': mtu,
           'auto_route': true,
-          'auto_redirect': true,
           'stack': stack,
           'dns_mode': 'hijack',
         },
@@ -392,8 +404,7 @@ class SingboxConverter {
         'enabled': true,
         'protocol': 'smux',
         'max_connections': 4,
-        'min_streams': 4,
-        'padding': true,
+        'padding': false,
       };
     }
 
