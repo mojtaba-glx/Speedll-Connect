@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "ir.speedll" "\0"
+            VALUE "CompanyName", "Speedll" "\0"
             VALUE "FileDescription", "speedll_connect_app" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "speedll_connect_app" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 ir.speedll. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Speedll. All rights reserved." "\0"
             VALUE "OriginalFilename", "speedll_connect_app.exe" "\0"
             VALUE "ProductName", "speedll_connect_app" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

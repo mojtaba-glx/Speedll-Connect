@@ -1,0 +1,65 @@
+name: Build Windows Desktop (.exe)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'app/**'
+      - 'packages/**'
+      - '.github/workflows/build-windows.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+      - 'packages/**'
+      - '.github/workflows/build-windows.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter (Windows Stable)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: stable
+          cache: true
+
+      - name: Enable Windows Desktop & Fetch Dependencies
+        working-directory: app
+        run: |
+          flutter config --enable-windows-desktop
+          flutter pub get
+
+      - name: Build SpeedllConnect.exe (Release)
+        working-directory: app
+        run: flutter build windows --release
+
+      - name: Bundle sing-box.exe (v1.14.4 windows-amd64)
+        shell: pwsh
+        run: |
+          $ReleaseDir = "app\build\windows\x64\runner\Release"
+          $OutDir = "Speedll-Connect-Windows-v1.4.0"
+          New-Item -ItemType Directory -Path "$OutDir\bin" -Force | Out-Null
+          Copy-Item -Path "$ReleaseDir\*" -Destination $OutDir -Recurse -Force
+
+          $ZipUrl = "https://github.com/SagerNet/sing-box/releases/download/v1.14.4/sing-box-1.14.4-windows-amd64.zip"
+          $ExpectedSha256 = "99185d75d314a07dbba4a130c8ad986cbeb629a07927975636b341ca61f991df"
+          Invoke-WebRequest -Uri $ZipUrl -OutFile "sing-box-win.zip"
+          $ActualSha256 = (Get-FileHash -Algorithm SHA256 -Path "sing-box-win.zip").Hash.ToLowerInvariant()
+          if ($ActualSha256 -ne $ExpectedSha256) {
+            throw "sing-box archive checksum mismatch: $ActualSha256"
+          }
+          Expand-Archive -Path "sing-box-win.zip" -DestinationPath "sing-box-extracted" -Force
+          $Exe = Get-ChildItem -Path "sing-box-extracted" -Filter "sing-box.exe" -Recurse | Select-Object -First 1
+          Copy-Item -Path "$($Exe.Directory.FullName)\*" -Destination "$OutDir\bin" -Recurse -Force
+
+      - name: Upload Windows Portable Bundle (.zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Speedll-Connect-Windows-v1.4.0
+          path: Speedll-Connect-Windows-v1.4.0/

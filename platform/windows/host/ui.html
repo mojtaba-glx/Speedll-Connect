@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Speedll Connect</title>
+<style>
+:root {
+  --bg1: #3B1564; --bg2: #280E47; --bg3: #19072E;
+  --card: rgba(52,22,88,0.82); --border: rgba(192,132,252,0.32);
+  --accent: #9333EA; --accent-light: #C084FC; --green: #4ADE80;
+  --text: #FFFFFF; --subtext: #D8B4FE;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; user-select: none; }
+body {
+  min-height: 100vh; color: var(--text);
+  background: linear-gradient(145deg, var(--bg1), var(--bg2), var(--bg3));
+  display: flex; flex-direction: column; overflow-x: hidden;
+}
+.appbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px;
+}
+.appbar-title { font-size: 19px; font-weight: 800; letter-spacing: 0.4px; }
+.icon-btn {
+  background: rgba(255,255,255,0.12); border: 1px solid var(--border);
+  color: var(--text); width: 38px; height: 38px; border-radius: 12px;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.icon-btn:hover { background: rgba(255,255,255,0.22); }
+.content { flex: 1; padding: 8px 18px 96px; max-width: 480px; width: 100%; margin: 0 auto; }
+.tab-view { display: none; }
+.tab-view.active { display: block; }
+.center { text-align: center; }
+.sec-header { font-size: 12px; font-weight: 700; opacity: 0.9; letter-spacing: 1px; margin-bottom: 6px; }
+.timer { font-size: 42px; font-weight: 300; letter-spacing: 2px; margin: 6px 0 10px; }
+.status-pill {
+  display: inline-block; padding: 6px 20px; border-radius: 99px;
+  font-size: 12.5px; font-weight: 800; background: var(--accent);
+  box-shadow: 0 0 16px rgba(147,51,234,0.55); margin-bottom: 14px; color: #fff;
+}
+.status-pill.connected { background: #22C55E; box-shadow: 0 0 18px rgba(34,197,94,0.65); }
+.status-pill.connecting { background: #F59E0B; }
+.status-pill.failed { background: #EF4444; }
+.error-box {
+  background: rgba(127,29,29,0.88); border: 1px solid #F87171; color: #fff;
+  padding: 9px 12px; border-radius: 14px; font-size: 12px; margin-bottom: 12px; text-align: center;
+}
+.power-wrap {
+  width: 206px; height: 206px; margin: 8px auto 14px; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+.ring1, .ring2, .ring3 { position: absolute; border-radius: 50%; pointer-events: none; }
+.ring1 { width: 204px; height: 204px; border: 1.5px solid rgba(192,132,252,0.18); box-shadow: 0 0 38px rgba(192,132,252,0.22); }
+.ring2 { width: 170px; height: 170px; background: rgba(107,33,168,0.16); border: 1.5px solid rgba(216,180,254,0.24); }
+.ring3 { width: 138px; height: 138px; background: rgba(126,34,206,0.24); border: 2px solid rgba(233,213,255,0.34); }
+.power-btn {
+  width: 108px; height: 108px; border-radius: 50%; border: none; cursor: pointer;
+  background: linear-gradient(135deg, var(--accent-light), var(--accent), #581C87);
+  color: #fff; font-size: 42px; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 24px rgba(147,51,234,0.55); position: relative; z-index: 2; transition: transform 0.15s;
+}
+.power-btn:active { transform: scale(0.95); }
+.ping-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--card); border: 1px solid var(--border);
+  padding: 7px 15px; border-radius: 20px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 22px; padding: 15px 16px; margin-top: 14px;
+}
+.profile-main-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer;
+}
+.flag-circle {
+  width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.12);
+  display: flex; align-items: center; justify-content: center; font-size: 23px; flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.25);
+}
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 10.5px; font-weight: 800;
+  background: rgba(74,222,128,0.2); color: var(--green); border: 1px solid rgba(74,222,128,0.5);
+}
+.btn-outline {
+  width: 100%; margin-top: 12px; padding: 13px; border-radius: 18px;
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.btn-outline:hover { opacity: 0.92; }
+.search-input {
+  width: 100%; padding: 11px 14px; border-radius: 16px; border: 1px solid var(--border);
+  background: rgba(0,0,0,0.25); color: var(--text); font-size: 13px; margin: 10px 0;
+}
+.white-item {
+  background: rgba(255,255,255,0.95); color: #1E1B4B; border-radius: 18px;
+  padding: 11px 13px; margin-bottom: 9px; display: flex; align-items: center; gap: 10px;
+  cursor: pointer; border: 2px solid transparent;
+}
+.white-item.selected { border-color: var(--accent); }
+.ping-tag {
+  padding: 4px 8px; border-radius: 9px; font-size: 11px; font-weight: 800; white-space: nowrap;
+}
+.ping-good { background: rgba(22,163,74,0.15); color: #15803D; border: 1px solid rgba(22,163,74,0.4); }
+.ping-warn { background: rgba(217,119,6,0.15); color: #B45309; border: 1px solid rgba(217,119,6,0.4); }
+.ping-bad { background: rgba(239,68,68,0.15); color: #DC2626; border: 1px solid rgba(239,68,68,0.4); }
+.bottom-nav {
+  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  width: calc(100% - 36px); max-width: 440px; height: 62px;
+  background: linear-gradient(135deg, #F5F3FF, #E2E8F0); border-radius: 32px;
+  display: flex; align-items: center; justify-content: space-around;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index: 20;
+}
+.nav-btn {
+  width: 46px; height: 46px; border-radius: 50%; border: none; background: transparent;
+  color: #334155; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.nav-btn.active {
+  background: linear-gradient(135deg, var(--accent-light), var(--accent));
+  color: #fff; box-shadow: 0 4px 12px rgba(147,51,234,0.45);
+}
+.chip-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+.chip {
+  padding: 7px 11px; border-radius: 12px; border: 1px solid var(--border);
+  background: rgba(255,255,255,0.08); color: var(--text); font-size: 12px; font-weight: 700; cursor: pointer;
+}
+.chip.active { background: var(--accent); border-color: var(--green); color: #fff; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; }
+.modal-bg {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.65); display: none;
+  align-items: center; justify-content: center; padding: 18px; z-index: 50;
+}
+.modal-bg.open { display: flex; }
+.modal-box {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 22px;
+  padding: 18px; width: 100%; max-width: 430px; color: var(--text);
+}
+textarea {
+  width: 100%; height: 95px; border-radius: 12px; border: 1px solid var(--border);
+  background: rgba(0,0,0,0.3); color: #fff; padding: 10px; font-size: 12px; margin-top: 10px; direction: ltr;
+}
+select {
+  background: var(--bg2); color: var(--green); border: 1px solid var(--border);
+  padding: 6px 10px; border-radius: 10px; font-weight: 700;
+}
+</style>
+</head>
+<body>
+<div class="appbar">
+  <div class="appbar-title">Speedll Connect</div>
+  <button class="icon-btn" id="btnRefreshSubs" title="به‌روزرسانی اشتراک‌ها" onclick="refreshSubs()">🔄</button>
+</div>
+
+<div class="content">
+  <!-- TAB 0: HOME -->
+  <div class="tab-view active" id="tab0">
+    <div class="center">
+      <div class="sec-header" id="lblSecured">🛡️ اتصال امن</div>
+      <div class="timer" id="lblTimer">00:00:00</div>
+      <div><span class="status-pill" id="lblStatus">قطع شده</span></div>
+      <div class="error-box" id="errBox" style="display:none"></div>
+      <div class="power-wrap">
+        <div class="ring1"></div><div class="ring2"></div><div class="ring3"></div>
+        <button class="power-btn" onclick="toggleConnect()">⏻</button>
+      </div>
+      <div class="ping-pill" onclick="pingAll()">
+        <span id="homeFlag">🌐</span>
+        <span id="homeCountry">سرور</span>
+        <span>|</span>
+        <span id="homePing">پینگ لحظه‌ای: — ms</span>
+      </div>
+    </div>
+
+    <div class="card profile-main-card" onclick="switchTab(1)">
+      <div class="flag-circle" id="cardFlag">🌐</div>
+      <div style="flex:1;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11.5px;color:var(--subtext);font-weight:700" id="lblProfilesCard">پروفایل‌ها</span>
+          <span class="badge" id="lblModeBadge">دستی</span>
+        </div>
+        <div style="font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:3px" id="cardServerName">انتخاب پروفایل</div>
+        <div style="font-size:11.5px;opacity:0.78;margin-top:3px" id="cardServerSub">هنوز سروری اضافه نشده است</div>
+      </div>
+      <div style="width:38px;height:38px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center">➔</div>
+    </div>
+
+    <button class="btn-outline" onclick="openImportModal()" id="btnAddSub">🔗 افزودن اشتراک یا کانفیگ</button>
+    <div class="center" style="font-size:11.5px;opacity:0.6;margin-top:10px" id="lblFooter">هسته متصل: sing-box v1.14.4 · نسخه ویندوز</div>
+  </div>
+
+  <!-- TAB 1: PROFILES -->
+  <div class="tab-view" id="tab1">
+    <div class="row-between">
+      <h3 id="hdrProfiles">پروفایل‌ها</h3>
+      <div style="display:flex;gap:6px">
+        <button class="chip" onclick="toggleSortPing()" id="btnSortPing">⇅ مرتب‌سازی پینگ</button>
+        <button class="chip active" onclick="pingAll()" id="btnPingAll">⚡ تست پینگ همه</button>
+        <button class="chip" onclick="openImportModal()">＋</button>
+      </div>
+    </div>
+    <input class="search-input" id="searchInput" placeholder="جستجوی نام سرور، کشور یا پروتکل..." oninput="renderProfiles()">
+    <div id="infoBanner" class="card" style="display:none;padding:9px 12px;margin-top:6px;margin-bottom:10px;font-size:11.5px"></div>
+
+    <div class="card profile-main-card" style="margin-top:6px;margin-bottom:12px" onclick="enableSmartMode()">
+      <div class="flag-circle">⚡</div>
+      <div style="flex:1">
+        <div style="font-weight:800;font-size:14px" id="lblSmartTitle">حالت هوشمند (اتوماتیک)</div>
+        <div style="font-size:11.5px;opacity:0.8;margin-top:2px" id="lblSmartSub">انتخاب خودکار سریع‌ترین سرور بر اساس کمترین پینگ</div>
+      </div>
+      <input type="radio" id="radioSmart" style="width:18px;height:18px">
+    </div>
+
+    <div id="profilesList"></div>
+  </div>
+
+  <!-- TAB 2: STATS -->
+  <div class="tab-view" id="tab2">
+    <h3 class="center" style="margin-bottom:14px" id="hdrStats">آمار و جزئیات اتصال</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="card" style="margin-top:0">
+        <div style="font-size:11.5px;opacity:0.75">پورت پروکسی محلی</div>
+        <div style="font-size:15px;font-weight:800;color:var(--green);margin-top:4px" id="lblProxyPort">127.0.0.1:2080</div>
+      </div>
+      <div class="card" style="margin-top:0">
+        <div style="font-size:11.5px;opacity:0.75">پینگ لحظه‌ای</div>
+        <div style="font-size:15px;font-weight:800;color:var(--accent-light);margin-top:4px" id="statPing">— ms</div>
+      </div>
+    </div>
+    <div class="card">
+      <div style="font-weight:800;margin-bottom:10px">جزئیات نشست ویندوز</div>
+      <div class="row-between"><span>وضعیت تونل:</span><strong id="statPhase">قطع شده</strong></div>
+      <div class="row-between"><span>کشور سرور:</span><strong id="statCountry">—</strong></div>
+      <div class="row-between"><span>پروتکل و حالت:</span><strong id="statProto">—</strong></div>
+      <div class="row-between"><span>مسیریابی:</span><strong id="statRoute">مستقیم برای .ir و LAN</strong></div>
+    </div>
+  </div>
+
+  <!-- TAB 3: SETTINGS -->
+  <div class="tab-view" id="tab3">
+    <h3 class="center" style="margin-bottom:12px" id="hdrSettings">تنظیمات پیشرفته</h3>
+    <div class="card">
+      <div style="font-weight:800;color:var(--subtext);margin-bottom:8px">عمومی، زبان و ۶ تم رنگی</div>
+      <div class="chip-row">
+        <button class="chip" id="langFa" onclick="setLang('fa')">فارسی (Persian)</button>
+        <button class="chip" id="langEn" onclick="setLang('en')">English (انگلیسی)</button>
+      </div>
+      <div style="font-size:12px;margin-top:12px;opacity:0.85">انتخاب تم برنامه:</div>
+      <div class="chip-row" id="themeChips">
+        <button class="chip" onclick="setTheme('royalPurple')">🟣 بنفش نئونی</button>
+        <button class="chip" onclick="setTheme('midnightDark')">⚫ دارک کلاسیک</button>
+        <button class="chip" onclick="setTheme('cyberCyan')">🔵 فیروزه‌ای</button>
+        <button class="chip" onclick="setTheme('emeraldGreen')">🟢 سبز زمردی</button>
+        <button class="chip" onclick="setTheme('oceanBlue')">🔷 آبی اقیانوسی</button>
+        <button class="chip" onclick="setTheme('cleanLight')">⚪ لایت / روشن</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:800;color:var(--subtext);margin-bottom:8px">مسیریابی و قوانین منطقه</div>
+      <div class="row-between">
+        <span>عبور مستقیم سایت‌ها و بانک‌های داخلی (.ir)</span>
+        <input type="checkbox" id="chkIran" onchange="saveRouting()">
+      </div>
+      <div class="row-between">
+        <span>عبور مستقیم شبکه محلی (LAN / Private IP)</span>
+        <input type="checkbox" id="chkLan" onchange="saveRouting()">
+      </div>
+      <div class="row-between">
+        <span>تشخیص هوشمند ترافیک (Traffic Sniffing)</span>
+        <input type="checkbox" id="chkSniff" onchange="saveRouting()">
+      </div>
+      <div class="row-between">
+        <span>تجمیع اتصالات (Multiplex / Mux)</span>
+        <input type="checkbox" id="chkMux" onchange="saveRouting()">
+      </div>
+      <div class="row-between">
+        <span>سرور Remote DNS</span>
+        <select id="selRemoteDns" onchange="saveRouting()">
+          <option value="1.1.1.1">1.1.1.1 (Cloudflare)</option>
+          <option value="8.8.8.8">8.8.8.8 (Google)</option>
+          <option value="9.9.9.9">9.9.9.9 (Quad9)</option>
+        </select>
+      </div>
+      <div class="row-between">
+        <span>سرور Direct DNS</span>
+        <select id="selDirectDns" onchange="saveRouting()">
+          <option value="8.8.8.8">8.8.8.8 (Google)</option>
+          <option value="1.1.1.1">1.1.1.1 (Cloudflare)</option>
+          <option value="178.22.122.100">178.22.122.100 (Shecan)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:800;color:var(--subtext);margin-bottom:8px">مدیریت اشتراک‌ها و اطلاعات نسخه</div>
+      <div class="row-between"><span>نسخه داخلی برنامه:</span><strong>1.4.0 (Build 9)</strong></div>
+      <div class="row-between"><span>موتور هسته ویندوز:</span><strong>sing-box v1.14.4</strong></div>
+      <button class="btn-outline" style="color:#F87171;border-color:rgba(248,113,113,0.4)" onclick="clearAllProfiles()">🗑️ پاک‌سازی همه پروفایل‌ها</button>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav0" onclick="switchTab(0)">🏠</button>
+  <button class="nav-btn" id="nav1" onclick="switchTab(1)">🚀</button>
+  <button class="nav-btn" id="nav2" onclick="switchTab(2)">📊</button>
+  <button class="nav-btn" id="nav3" onclick="switchTab(3)">⚙️</button>
+</div>
+
+<!-- IMPORT MODAL -->
+<div class="modal-bg" id="importModal">
+  <div class="modal-box">
+    <h4>افزودن اشتراک هوشمند (all.txt) یا کانفیگ</h4>
+    <p style="font-size:12px;opacity:0.8;margin-top:6px">لینک اشتراک HTTPS (مثل all.txt) یا کانفیگ‌های VLESS / VMess / Trojan / Hysteria2 را وارد کنید:</p>
+    <textarea id="importInput" placeholder="https://.../sub/.../all.txt یا vless://..."></textarea>
+    <div id="importErr" style="color:#F87171;font-size:12px;margin-top:6px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button class="chip" onclick="closeImportModal()">انصراف</button>
+      <button class="chip active" id="btnSubmitImport" onclick="submitImport()">افزودن سرورها</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let appState = null;
+let sortByPing = false;
+
+const themes = {
+  royalPurple: { bg1:'#3B1564', bg2:'#280E47', bg3:'#19072E', card:'rgba(52,22,88,0.82)', accent:'#9333EA', light:'#C084FC', text:'#FFF', sub:'#D8B4FE' },
+  midnightDark: { bg1:'#1E293B', bg2:'#0F172A', bg3:'#020617', card:'rgba(30,41,59,0.85)', accent:'#0284C7', light:'#38BDF8', text:'#FFF', sub:'#BAE6FD' },
+  cyberCyan: { bg1:'#155E75', bg2:'#083344', bg3:'#041C24', card:'rgba(14,69,88,0.85)', accent:'#0891B2', light:'#22D3EE', text:'#FFF', sub:'#A5F3FC' },
+  emeraldGreen: { bg1:'#065F46', bg2:'#064E3B', bg3:'#022C22', card:'rgba(6,78,59,0.85)', accent:'#059669', light:'#34D399', text:'#FFF', sub:'#A7F3D0' },
+  oceanBlue: { bg1:'#1E3A8A', bg2:'#172554', bg3:'#090D16', card:'rgba(30,58,138,0.85)', accent:'#2563EB', light:'#60A5FA', text:'#FFF', sub:'#BFDBFE' },
+  cleanLight: { bg1:'#DDD6FE', bg2:'#EDE9FE', bg3:'#F8FAFC', card:'rgba(255,255,255,0.92)', accent:'#7E22CE', light:'#9333EA', text:'#1E1B4B', sub:'#581C87' }
+};
+
+function applyTheme(name) {
+  const t = themes[name] || themes.royalPurple;
+  const r = document.documentElement.style;
+  r.setProperty('--bg1', t.bg1); r.setProperty('--bg2', t.bg2); r.setProperty('--bg3', t.bg3);
+  r.setProperty('--card', t.card); r.setProperty('--accent', t.accent);
+  r.setProperty('--accent-light', t.light); r.setProperty('--text', t.text); r.setProperty('--subtext', t.sub);
+}
+
+function switchTab(idx) {
+  for (let i=0; i<4; i++) {
+    document.getElementById('tab'+i).classList.toggle('active', i===idx);
+    document.getElementById('nav'+i).classList.toggle('active', i===idx);
+  }
+}
+
+function formatPing(ms) {
+  if (ms === undefined || ms === null || ms === 0) return '— ms';
+  if (ms < 0) return 'Timeout';
+  return ms + ' ms';
+}
+
+function renderAll() {
+  if (!appState) return;
+  applyTheme(appState.themePreset);
+  const isFa = appState.language !== 'en';
+  document.documentElement.dir = isFa ? 'rtl' : 'ltr';
+
+  const pill = document.getElementById('lblStatus');
+  pill.className = 'status-pill ' + appState.phase;
+  const phaseMapFa = { connected:'متصل شد', connecting:'در حال اتصال...', failed:'خطا در اتصال', disconnected:'قطع شده' };
+  const phaseMapEn = { connected:'CONNECTED', connecting:'CONNECTING...', failed:'FAILED', disconnected:'DISCONNECTED' };
+  pill.textContent = (isFa ? phaseMapFa : phaseMapEn)[appState.phase] || appState.phase;
+  const proxyPortLabel = document.getElementById('lblProxyPort');
+  if (proxyPortLabel) proxyPortLabel.textContent = '127.0.0.1:' + (appState.mixedPort || 2080);
+
+  const errBox = document.getElementById('errBox');
+  if (appState.errorMessage) { errBox.style.display='block'; errBox.textContent=appState.errorMessage; }
+  else { errBox.style.display='none'; }
+
+  const active = (appState.profiles || []).find(p => p.id === appState.activeProfileId);
+  document.getElementById('homeFlag').textContent = appState.isSmartMode ? '⚡' : (active ? active.flagEmoji : '🌐');
+  document.getElementById('homeCountry').textContent = active ? (isFa ? active.countryFa : active.countryEn) : (isFa ? 'سرور' : 'Server');
+  document.getElementById('homePing').textContent = (isFa ? 'پینگ لحظه‌ای: ' : 'Live Ping: ') + formatPing(appState.livePingMs);
+
+  document.getElementById('cardFlag').textContent = appState.isSmartMode ? '⚡' : (active ? active.flagEmoji : '🌐');
+  document.getElementById('lblModeBadge').textContent = appState.isSmartMode ? (isFa ? 'هوشمند' : 'SMART') : (isFa ? 'دستی' : 'MANUAL');
+  document.getElementById('cardServerName').textContent = active ? active.displayName : (isFa ? 'انتخاب پروفایل' : 'Select Profile');
+  document.getElementById('cardServerSub').textContent = active ? (`IP ${active.serverAddress}:${active.serverPort} | ${active.transportTag} | ${formatPing(appState.livePingMs)}`) : (isFa ? 'هنوز سروری اضافه نشده است' : 'No profiles added yet');
+
+  document.getElementById('radioSmart').checked = !!appState.isSmartMode;
+  document.getElementById('statPing').textContent = formatPing(appState.livePingMs);
+  document.getElementById('statPhase').textContent = pill.textContent;
+  document.getElementById('statCountry').textContent = active ? `${active.flagEmoji} ${isFa ? active.countryFa : active.countryEn}` : '—';
+  document.getElementById('statProto').textContent = active ? active.transportTag : '—';
+
+  const r = appState.routingOptions || {};
+  document.getElementById('chkIran').checked = !!r.bypassIranDomains;
+  document.getElementById('chkLan').checked = !!r.bypassLan;
+  document.getElementById('chkSniff').checked = !!r.enableTrafficSniffing;
+  document.getElementById('chkMux').checked = !!r.enableMux;
+  if (r.remoteDnsServer) document.getElementById('selRemoteDns').value = r.remoteDnsServer;
+  if (r.directDnsServer) document.getElementById('selDirectDns').value = r.directDnsServer;
+
+  renderProfiles();
+}
+
+function renderProfiles() {
+  if (!appState) return;
+  const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const all = appState.profiles || [];
+  const infoNodes = all.filter(p => p.isInfoNode);
+  const realNodes = all.filter(p => !p.isInfoNode);
+  const listSource = realNodes.length > 0 ? realNodes : all;
+
+  const banner = document.getElementById('infoBanner');
+  if (infoNodes.length > 0 && realNodes.length > 0) {
+    banner.style.display = 'block';
+    banner.innerHTML = '<strong>ℹ️ اطلاعات اشتراک: </strong>' + infoNodes.slice(0,3).map(n => n.displayName).join(' &nbsp;|&nbsp; ');
+  } else {
+    banner.style.display = 'none';
+  }
+
+  let filtered = listSource.filter(p => {
+    if (!q) return true;
+    return p.displayName.toLowerCase().includes(q) || p.protocol.toLowerCase().includes(q) || p.serverAddress.toLowerCase().includes(q) || p.countryFa.includes(q);
+  });
+
+  if (sortByPing) {
+    filtered.sort((a,b) => {
+      const pa = (appState.profilePings || {})[a.id];
+      const pb = (appState.profilePings || {})[b.id];
+      const sa = (pa && pa > 0) ? pa : 999999;
+      const sb = (pb && pb > 0) ? pb : 999999;
+      return sa - sb;
+    });
+  }
+
+  const container = document.getElementById('profilesList');
+  if (filtered.length === 0) {
+    container.innerHTML = '<div class="center" style="opacity:0.7;padding:24px">هنوز سروری اضافه نشده است</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(p => {
+    const ms = (appState.profilePings || {})[p.id];
+    const pCls = (!ms || ms === 0) ? 'ping-warn' : (ms < 0 ? 'ping-bad' : (ms < 200 ? 'ping-good' : 'ping-warn'));
+    const isSel = p.id === appState.activeProfileId;
+    return `<div class="white-item ${isSel ? 'selected' : ''}" onclick="selectProfile('${p.id}')">
+      <div style="font-size:24px">${p.flagEmoji}</div>
+      <div style="flex:1;overflow:hidden">
+        <div style="font-weight:800;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.displayName}</div>
+        <div style="font-size:11px;color:#475569;margin-top:3px"><strong>${p.transportTag}</strong> · ${p.serverAddress}:${p.serverPort}</div>
+      </div>
+      <span class="ping-tag ${pCls}">${formatPing(ms)}</span>
+      <button onclick="event.stopPropagation();deleteProfile('${p.id}')" style="border:none;background:transparent;cursor:pointer;font-size:15px" title="حذف">🗑️</button>
+    </div>`;
+  }).join('');
+}
+
+async function fetchState() {
+  const res = await fetch('/api/state');
+  appState = await res.json();
+  renderAll();
+}
+
+async function toggleConnect() {
+  const res = await fetch('/api/toggle', {method:'POST'});
+  appState = await res.json();
+  renderAll();
+}
+
+async function selectProfile(id) {
+  const res = await fetch('/api/select', {method:'POST', body:JSON.stringify({id})});
+  appState = await res.json();
+  renderAll();
+}
+
+async function enableSmartMode() {
+  const res = await fetch('/api/select', {method:'POST', body:JSON.stringify({smartMode:true})});
+  appState = await res.json();
+  renderAll();
+}
+
+async function pingAll() {
+  const btn = document.getElementById('btnPingAll');
+  btn.textContent = '⏳ در حال تست پینگ...';
+  const res = await fetch('/api/ping-all', {method:'POST'});
+  appState = await res.json();
+  btn.textContent = '⚡ تست پینگ همه';
+  renderAll();
+}
+
+function toggleSortPing() {
+  sortByPing = !sortByPing;
+  document.getElementById('btnSortPing').classList.toggle('active', sortByPing);
+  renderProfiles();
+}
+
+function openImportModal() {
+  document.getElementById('importErr').textContent = '';
+  document.getElementById('importModal').classList.add('open');
+}
+function closeImportModal() {
+  document.getElementById('importModal').classList.remove('open');
+}
+
+async function submitImport() {
+  const input = document.getElementById('importInput').value.trim();
+  if (!input) return;
+  const btn = document.getElementById('btnSubmitImport');
+  btn.textContent = 'در حال دریافت...';
+  const res = await fetch('/api/import', {method:'POST', body:JSON.stringify({input})});
+  const data = await res.json();
+  btn.textContent = 'افزودن سرورها';
+  if (!res.ok) {
+    document.getElementById('importErr').textContent = data.error || 'خطا در افزودن اشتراک';
+    return;
+  }
+  appState = data;
+  document.getElementById('importInput').value = '';
+  closeImportModal();
+  renderAll();
+  setTimeout(fetchState, 1600);
+}
+
+async function refreshSubs() {
+  const res = await fetch('/api/refresh-subs', {method:'POST'});
+  appState = await res.json();
+  renderAll();
+  setTimeout(fetchState, 1600);
+}
+
+async function setLang(language) {
+  const res = await fetch('/api/settings', {method:'POST', body:JSON.stringify({language})});
+  appState = await res.json();
+  renderAll();
+}
+
+async function setTheme(themePreset) {
+  const res = await fetch('/api/settings', {method:'POST', body:JSON.stringify({themePreset})});
+  appState = await res.json();
+  renderAll();
+}
+
+async function saveRouting() {
+  const routingOptions = {
+    ...appState.routingOptions,
+    bypassIranDomains: document.getElementById('chkIran').checked,
+    bypassLan: document.getElementById('chkLan').checked,
+    enableTrafficSniffing: document.getElementById('chkSniff').checked,
+    enableMux: document.getElementById('chkMux').checked,
+    remoteDnsServer: document.getElementById('selRemoteDns').value,
+    directDnsServer: document.getElementById('selDirectDns').value
+  };
+  const res = await fetch('/api/settings', {method:'POST', body:JSON.stringify({routingOptions})});
+  appState = await res.json();
+  renderAll();
+}
+
+async function clearAllProfiles() {
+  const res = await fetch('/api/settings', {method:'POST', body:JSON.stringify({clearProfiles:true})});
+  appState = await res.json();
+  renderAll();
+}
+
+async function deleteProfile(id) {
+  const res = await fetch('/api/settings', {method:'POST', body:JSON.stringify({deleteProfile:id})});
+  appState = await res.json();
+  renderAll();
+}
+
+setInterval(() => {
+  if (appState && appState.phase === 'connected' && appState.connectedSinceUnix > 0) {
+    const sec = Math.max(0, Math.floor(Date.now()/1000) - appState.connectedSinceUnix);
+    const h = String(Math.floor(sec/3600)).padStart(2,'0');
+    const m = String(Math.floor((sec%3600)/60)).padStart(2,'0');
+    const s = String(sec%60).padStart(2,'0');
+    document.getElementById('lblTimer').textContent = `${h}:${m}:${s}`;
+  } else {
+    document.getElementById('lblTimer').textContent = '00:00:00';
+  }
+}, 1000);
+
+fetchState();
+</script>
+</body>
+</html>
