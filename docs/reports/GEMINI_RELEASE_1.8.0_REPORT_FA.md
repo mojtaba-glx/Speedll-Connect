@@ -92,8 +92,8 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 
 | نام فایل | اندازه | چک‌سام SHA-256 |
 | :--- | :---: | :--- |
-| `Speedll-Connect-v1.8.0-arm64-v8a.apk` | ۳۴.۲۷ MB | `e4724ad118869c91f0882ca107cdc7ab3394a0c980b409ceacb21449c2a6d90c` |
-| `Speedll-Connect-v1.8.0-armeabi-v7a.apk` | ۳۳.۹۰ MB | `f21cbcb9ff3eb6512bdeeb9acfa6cce18eccd0ee4e00598a41e308612432c021` |
+| `Speedll-Connect-v1.8.0-arm64-v8a.apk` | ۳۵.۹۳ MB | `b7b9e62acb87576e0d4804f79c914206524b2bc3ea0f8127b445c3f006c07bc5` |
+| `Speedll-Connect-v1.8.0-armeabi-v7a.apk` | ۳۵.۵۴ MB | `d2dbb85f763565fe01257c9d4ec93178c5b1df6717ad95b4daf734e05742de33` |
 
 ### متادیتای استخراج‌شده با `aapt2 dump badging`:
 - `package: name='app.speedll.connect'`
@@ -141,3 +141,35 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 3. `13b5e67`: `feat(branding): add platform app icons and monochrome vpn notification icon`
 4. `8dbf2f1`: `chore(release): bump version to 1.8.0+14 and consolidate changelog`
 5. `28243a0`: `chore: ignore release-test directory`
+6. `b737df3`: `docs(reports): add release 1.8.0 verification and test report`
+7. `0147e43`: `fix(engine): resolve routing loop, default route omission, and DNS deadlock on Android`
+
+---
+
+## ۱۱. ریشه‌یابی و حل مشکل عدم عبور ترافیک (Traffic Routing & DNS Deadlock)
+
+در تست دستگاه واقعی مشخص شد که وضعیت VPN به حالت Connected تغییر می‌کند اما هیچ داده‌ای بین برنامه‌ها (مانند تلگرام) و سرور رد و بدل نمی‌شود. با بررسی و مهندسی معکوس رفتار تعامل لایه کاتلین اندروید (`LibboxVpnService` / `LibboxPlatformInterface`) و لایه Go هسته `libbox 1.14.4`، علل ریشه‌ای زیر شناسایی و برطرف گردیدند:
+
+### ۱. لوپ مسیریابی اینترفیس پیش‌فرض (DefaultNetworkMonitor Routing Loop)
+- **علت:** در کلاس `DefaultNetworkMonitor.kt`، درخواست شبکه (`NetworkRequest`) فاقد قید `.addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)` بود. پس از برقراری تونل، سیستم‌عامل اندروید اینترفیس مجازی `tun0` را به عنوان یک اینترفیس در دسترس به `ConnectivityManager` اعلام می‌کرد. در نتیجه، کال‌بک `onAvailable` اینترفیس `tun0` را به عنوان شبکه فیزیکی اصلی فرض کرده و با فراخوانی `updateDefaultInterface("tun0")`، اینترفیس زیرین هسته sing-box را به خود `tun0` متصل می‌کرد. بدین ترتیب تمامی ترافیک خروجی پروکسی دوباره به داخل تونل لوپ می‌شد و بن‌بست پکت رخ می‌داد.
+- **اصلاح:** قید `NET_CAPABILITY_NOT_VPN` به `NetworkRequest` اضافه شد و در متدهای `onAvailable`، `onCapabilitiesChanged` و `onLinkPropertiesChanged` شرط عدم انتساب شبکه VPN اعمال گردید. علاوه بر این، در `dispatchDefaultInterface` چنانچه نام اینترفیسی با `tun` شروع شود، ارسال آن به sing-box اکیداً مسدود شد.
+
+### ۲. حذف مسیرهای پیش‌فرض سیستم (Omission of Default Route 0.0.0.0/0)
+- **علت:** در متد `openTun` فایل `LibboxPlatformInterface.kt`، فراخوانی قبلی `addAddresses(options.inet4Address)` ایتراتور را خالی می‌کرد و بررسی بعدی `options.inet4Address.hasNext()` همواره `false` می‌شد. علاوه بر آن، در اندروید کمتر از ۱۳ از `inet4RouteRange` استفاده می‌شد که در تنظیمات معمول خالی بود. به همین دلیل خط `builder.addRoute("0.0.0.0", 0)` اجرا نمی‌شد و اندروید ترافیک عمومی اپلیکیشن‌ها را به سمت اینترفیس VPN روانه نمی‌کرد.
+- **اصلاح:** ایتراتور مسیرهای IPv4 به طور کامل پیمایش شده و در صورتی که هیچ مسیری ثبت نشده باشد، به صورت تضمینی `builder.addRoute("0.0.0.0", 0)` فراخوانی می‌شود. این رفتار برای مسیر پیش‌فرض IPv6 (`::/0`) نیز با fallback امن پیاده‌سازی گردید.
+
+### ۳. بن‌بست تفکیک نام دامنه (DNS Blackhole)
+- **علت:** در متد `openTun`، اگر گزینه‌های DNS ورودی خالی بودند، هیچ سرور DNS به `builder.addDnsServer` معرفی نمی‌شد؛ در نتیجه سیستم اندروید کوئری‌های DNS اپلیکیشن‌ها را به جای اینترفیس TUN از شبکه عادی ارسال می‌کرد یا دور می‌ریخت.
+- **اصلاح:** یک fallback استاندارد در لایه پلتفرم تعبیه شد که در صورت خالی بودن لیست، آدرس DNS مجازی TUN (`172.19.0.2`) و سرور معتبر `1.1.1.1` را به Builder اضافه کند تا سیستم اندروید به طور قطعی تمام کوئری‌های DNS را به سمت مکانیزم `hijack-dns` هسته هدایت کند.
+
+### ۴. حذف گزینه مخرب `override_android_vpn`
+- **علت:** در فایل `singbox_converter.dart`، مقدار `override_android_vpn: true` در بخش TUN اینباند تنظیم شده بود. در نسخه 1.14 هسته sing-box، این گزینه سوکت‌های خروجی sing-box را مجبور می‌کند از محافظت VpnService خارج شده و دوباره از داخل VPN عبور کنند که باعث حلقه بن‌بست پکت‌ها می‌شد.
+- **اصلاح:** این پارامتر از ساختار کانفیگ اینباند Tun در پلتفرم اندروید حذف شد.
+
+### ۵. پایداری DNS دایرکت در شبکه ایران
+- **علت:** در کانفیگ sing-box، تگ `dns-direct` به آی‌پی ثالث شکن (`178.22.122.100`) مقید شده بود که روی برخی اپراتورهای موبایل در ایران دچار اختلال یا مسدودی است؛ بنابراین خود هسته sing-box نمی‌توانست نام دامنه سرور پروکسی را در مرحله Handshake اولیه ریزالو کند.
+- **اصلاح:** سرور `dns-direct` به `{"type": "local", "tag": "dns-direct", "detour": "direct"}` تغییر یافت تا از DNS بومی و پایدار خود شبکه و اپراتور استفاده شود.
+
+### ۶. مدیریت خطای مالک سوکت در `findConnectionOwner`
+- **علت:** پرتاب استثنای خام `error("android: connection owner not found")` هنگام عدم شناسایی UID باعث بسته شدن ناگهانی برخی ارتباطات می‌شد.
+- **اصلاح:** هدایت نرم خطا به fallback رسمی `Libbox.findConnectionOwner`.
