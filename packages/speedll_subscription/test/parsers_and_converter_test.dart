@@ -564,6 +564,27 @@ trojan://sanitized_pass@198.51.100.30:443?security=tls&type=grpc&serviceName=grp
         equals('local'),
       );
     });
+
+    test('SafeProxyUri preserves bracketed IPv6 hosts with spaces/pipes in query and normalizes hosts', () async {
+      const rawUri =
+          'vless://11111111-1111-1111-1111-111111111111@[2001:db8::abcd]:443?security=tls&type=ws&path=/?ed=2048|test space#IPv6 Node';
+      final parsed = SafeProxyUri.parse(rawUri);
+      expect(parsed.uri.host, equals('2001:db8::abcd'));
+      expect(parsed.uri.port, equals(443));
+
+      const parser = VlessParser();
+      final result = await parser.parse(rawUri);
+      expect(result.isSuccess, isTrue);
+      expect(result.profiles.first.serverAddress, equals('2001:db8::abcd'));
+      expect(result.profiles.first.serverPort, equals(443));
+
+      expect(SafeProxyUri.normalizeHost('[2001:db8::1]'), equals('2001:db8::1'));
+      expect(SafeProxyUri.normalizeHost('2001:db8::1'), equals('2001:db8::1'));
+      expect(SafeProxyUri.normalizeHost('example.com'), equals('example.com'));
+
+      expect(SingboxConverter.isValidDnsServer('2606:4700:4700::1111'), isTrue);
+      expect(SingboxConverter.isValidDnsServer('[2606:4700:4700::1111]:53'), isTrue);
+    });
   });
 }
 

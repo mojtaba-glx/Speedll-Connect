@@ -284,6 +284,86 @@ vless://00000000-0000-0000-0000-000000000001@198.51.100.10:443
       expect(nameFromSample2, isNotNull);
       expect(nameFromSample2, contains('1111'));
     });
+  test('decodes base64 profile-title headers, body comments, Content-Disposition, and heals stored titles', () async {
+    const sampleVless =
+        'vless://11111111-1111-1111-1111-111111111111@203.0.113.10:443?security=tls#Test';
+
+    // 1. HTTP profile-title header with base64:bW9qdGFiYQ== ("mojtaba")
+    final headerUpdater = SubscriptionUpdater(
+      httpClient: _FakeHttpClient(
+        (_) async => const SubscriptionHttpResponse(
+          statusCode: 200,
+          body: sampleVless,
+          headers: <String, String>{
+            'profile-title': 'base64:bW9qdGFiYQ==',
+          },
+        ),
+      ),
+    );
+    final headerResult = await headerUpdater.fetchAndValidate(
+      'https://example.com/sub/abc',
+    );
+    expect(headerResult.isSuccess, isTrue);
+    expect(headerResult.subscriberName, equals('mojtaba'));
+
+    // 2. Base64 subscription body with #profile-title: base64:<UTF-8 Persian "مجتبی">
+    final persianB64 = base64Encode(utf8.encode('مجتبی'));
+    final subBody = base64Encode(
+      utf8.encode('#profile-title: base64:$persianB64\n$sampleVless'),
+    );
+    final bodyUpdater = SubscriptionUpdater(
+      httpClient: _FakeHttpClient(
+        (_) async => SubscriptionHttpResponse(
+          statusCode: 200,
+          body: subBody,
+          headers: const <String, String>{},
+        ),
+      ),
+    );
+    final bodyResult = await bodyUpdater.fetchAndValidate(
+      'https://example.com/sub/xyz',
+    );
+    expect(bodyResult.isSuccess, isTrue);
+    expect(bodyResult.subscriberName, equals('مجتبی'));
+
+    // 3. Content-Disposition filename*=UTF-8''%D9%85%D8%AC%D8%AA%D8%A8%DB%8C.txt
+    final dispUpdater = SubscriptionUpdater(
+      httpClient: _FakeHttpClient(
+        (_) async => SubscriptionHttpResponse(
+          statusCode: 200,
+          body: sampleVless,
+          headers: <String, String>{
+            'content-disposition':
+                "attachment; filename*=UTF-8''${Uri.encodeComponent('مجتبی.txt')}",
+          },
+        ),
+      ),
+    );
+    final dispResult = await dispUpdater.fetchAndValidate(
+      'https://example.com/sub/def',
+    );
+    expect(dispResult.isSuccess, isTrue);
+    expect(dispResult.subscriberName, equals('مجتبی'));
+
+    // 4. Healing already-saved corrupted base64 source names on deserialization
+    final healed = SubscriptionSource.fromJson(const <String, dynamic>{
+      'id': 's4',
+      'name': 'اشتراک base64:bW9qdGFiYQ==',
+      'url': 'https://example.com/sub/test',
+    });
+    expect(healed.name, equals('اشتراک mojtaba'));
+    expect(healed.subscriberName, equals('mojtaba'));
+    expect(healed.displayUserName, equals('اشتراک mojtaba'));
+
+    // 5. Invalid base64 never leaks raw "base64:" into displayUserName
+    const invalid = SubscriptionSource(
+      id: 's5',
+      name: 'اشتراک base64:not_valid!!!',
+      url: 'https://example.com/sub/ali_user',
+    );
+    expect(invalid.displayUserName, isNot(contains('base64:')));
+    expect(invalid.displayUserName, equals('اشتراک ali_user'));
+  });
   });
 }
 

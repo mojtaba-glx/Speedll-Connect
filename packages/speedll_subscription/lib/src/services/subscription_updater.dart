@@ -308,27 +308,88 @@ class SubscriptionSource {
   final SubscriptionUserInfo? userInfo;
   final String? subscriberName;
 
-  static bool _isValidSubscriberName(String candidate) {
-    if (candidate.isEmpty || candidate.length > 28) return false;
+  static final RegExp _rawDomainPattern = RegExp(
+    r'^(?:[a-zA-Z0-9-]+\.)+(?:ir|com|net|org|xyz|site|top|info|io|co|me|dev|app|invalid|local)$',
+    caseSensitive: false,
+  );
+
+  static bool _isValidSubscriberName(
+    String candidate, {
+    bool allowDots = false,
+    int maxLength = 28,
+  }) {
+    if (candidate.isEmpty || candidate.length > maxLength) return false;
     final lower = candidate.toLowerCase();
+    if (lower.startsWith('base64:') ||
+        lower.startsWith('http://') ||
+        lower.startsWith('https://')) {
+      return false;
+    }
     if (lower == 'status' ||
         lower == 'traffic' ||
         lower == 'volume' ||
         lower == 'gb' ||
         lower == 'mb' ||
-        lower == 'tb') {
+        lower == 'tb' ||
+        lower == 'sub' ||
+        lower == 'all' ||
+        lower == 'subscription') {
       return false;
     }
     if (RegExp(r'^\d+(?:\.\d+)?$').hasMatch(candidate)) return false;
-    if (candidate.contains('.') &&
-        (candidate.endsWith('.ir') ||
-            candidate.endsWith('.com') ||
-            candidate.endsWith('.net') ||
-            candidate.endsWith('.org') ||
-            candidate.endsWith('.invalid'))) {
-      return false;
-    }
+    if (!allowDots && candidate.contains('.')) return false;
+    if (_rawDomainPattern.hasMatch(candidate)) return false;
     return true;
+  }
+
+  /// Decodes optional `base64:` prefix, unwraps redundant `اشتراک ` prefixes,
+  /// strips surrounding quotes/whitespace, and validates the title.
+  static String? sanitizeSubscriberName(
+    String? raw, {
+    bool allowDots = true,
+    int maxLength = 64,
+  }) {
+    if (raw == null) return null;
+    var candidate = raw.trim();
+    if (candidate.isEmpty) return null;
+
+    if ((candidate.startsWith('"') && candidate.endsWith('"')) ||
+        (candidate.startsWith("'") && candidate.endsWith("'"))) {
+      if (candidate.length >= 2) {
+        candidate = candidate.substring(1, candidate.length - 1).trim();
+      }
+    }
+
+    while (candidate.startsWith('اشتراک ')) {
+      candidate = candidate.substring('اشتراک '.length).trim();
+    }
+    if (candidate.isEmpty) return null;
+
+    if (candidate.toLowerCase().startsWith('base64:')) {
+      final decoded = tryDecodeBase64(candidate);
+      if (decoded == null) return null;
+      candidate = decoded.trim();
+      while (candidate.startsWith('اشتراک ')) {
+        candidate = candidate.substring('اشتراک '.length).trim();
+      }
+    } else if (RegExp(r'%[0-9a-fA-F]{2}').hasMatch(candidate)) {
+      candidate = SafeProxyUri.decodeFragmentSafely(candidate);
+    }
+
+    return _isValidSubscriberName(
+      candidate,
+      allowDots: allowDots,
+      maxLength: maxLength,
+    )
+        ? candidate
+        : null;
+  }
+
+  /// Formats a clean subscription title prefixed consistently with `اشتراک `.
+  static String formatSubscriptionTitle(String cleanName) {
+    final trimmed = cleanName.trim();
+    if (trimmed.isEmpty) return 'اشتراک';
+    return trimmed.startsWith('اشتراک ') ? trimmed : 'اشتراک $trimmed';
   }
 
   static String? _extractNameFromDisplayName(String rawName) {
@@ -371,7 +432,7 @@ class SubscriptionSource {
 
   static String? tryDecodeBase64(String raw) {
     var s = raw.trim();
-    if (s.startsWith('base64:')) {
+    if (s.toLowerCase().startsWith('base64:')) {
       s = s.substring(7).trim();
     }
     if (s.isEmpty) return null;
@@ -385,6 +446,19 @@ class SubscriptionSource {
         return decoded.trim();
       }
     } catch (_) {}
+    return null;
+  }
+
+  static String? _extractProfileTitleFromBody(String body) {
+    final match = RegExp(
+      r'^\s*(?:#|//)\s*profile-title\s*:\s*(.+)$',
+      caseSensitive: false,
+      multiLine: true,
+    ).firstMatch(body);
+    if (match != null) {
+      final title = sanitizeSubscriberName(match.group(1));
+      if (title != null) return title;
+    }
     return null;
   }
 
@@ -411,18 +485,22 @@ class SubscriptionSource {
   }
 
   /// Extracts the human-readable subscriber name using all available clues:
-  /// response headers, body metadata, profile display names (e.g. Trojan status
-  /// nodes or prefixes), Trojan credentials/extraParams, or URL fragments/queries.
+  /// response headers (`profile-title`, `content-disposition`), body metadata
+  /// (`#profile-title:` including inside Base64 payloads), profile display names,
+  /// Trojan metadata, or URL fragments/queries.
   static String? extractSubscriberName({
     required String url,
     List<ServerProfile>? profiles,
     String? responseBody,
     Map<String, String>? responseHeaders,
   }) {
+    final uri = Uri.tryParse(url);
+    final urlHostLower = uri?.host.trim().toLowerCase() ?? '';
+
     // 0. Check base64 encoded URL or input
-    if (url.startsWith('base64:')) {
-      final decoded = tryDecodeBase64(url);
-      if (decoded != null && _isValidSubscriberName(decoded)) {
+    if (url.trim().toLowerCase().startsWith('base64:')) {
+      final decoded = sanitizeSubscriberName(url, allowDots: false);
+      if (decoded != null) {
         return decoded;
       }
     }
@@ -432,36 +510,51 @@ class SubscriptionSource {
       for (final entry in responseHeaders.entries) {
         final k = entry.key.toLowerCase();
         if (k == 'profile-title' || k == 'x-profile-title') {
-          final title = entry.value.trim();
-          if (title.isNotEmpty && !title.contains('.')) return title;
+          final title = sanitizeSubscriberName(entry.value, allowDots: true);
+          if (title != null && title.toLowerCase() != urlHostLower) {
+            return title;
+          }
         }
         if (k == 'content-disposition') {
-          final fnMatch = RegExp(r'filename\*?=(?:UTF-8'')?"?([^";\n\r]+)"?')
-              .firstMatch(entry.value);
+          final fnMatch = RegExp(
+            r'''filename\*?=(?:utf-8'')?"?([^";\r\n]+)"?''',
+            caseSensitive: false,
+          ).firstMatch(entry.value);
           if (fnMatch != null) {
             var rawFn = fnMatch.group(1)?.trim() ?? '';
             rawFn = rawFn
-                .replaceAll(RegExp(r'\.(txt|yaml|yml|json|conf)$'), '')
+                .replaceAll(
+                  RegExp(r'\.(txt|yaml|yml|json|conf)$', caseSensitive: false),
+                  '',
+                )
                 .trim();
-            if (rawFn.isNotEmpty && !rawFn.contains('.') && rawFn.length <= 28) {
-              return Uri.decodeComponent(rawFn);
+            final cleanFn = sanitizeSubscriberName(rawFn, allowDots: true);
+            if (cleanFn != null && cleanFn.toLowerCase() != urlHostLower) {
+              return cleanFn;
             }
           }
         }
       }
     }
 
-    // 2. From response body metadata (#profile-title: ...)
-    if (responseBody != null) {
-      final bodyTitleMatch = RegExp(
-        r'^\s*(?:#|//)\s*profile-title\s*:\s*(.+)$',
-        caseSensitive: false,
-        multiLine: true,
-      ).firstMatch(responseBody);
-      if (bodyTitleMatch != null) {
-        final val = bodyTitleMatch.group(1)!.trim();
-        if (val.isNotEmpty && !val.contains('.')) {
-          return val;
+    // 2. From response body metadata (#profile-title: ...), including Base64-wrapped payloads
+    if (responseBody != null && responseBody.trim().isNotEmpty) {
+      final directTitle = _extractProfileTitleFromBody(responseBody);
+      if (directTitle != null && directTitle.toLowerCase() != urlHostLower) {
+        return directTitle;
+      }
+      if (!responseBody.contains('://')) {
+        final nonCommentLines = responseBody
+            .split(RegExp(r'[\r\n]+'))
+            .map((l) => l.trim())
+            .where((l) => l.isNotEmpty && !l.startsWith('#') && !l.startsWith('//'))
+            .join('');
+        final decodedBody = tryDecodeBase64(nonCommentLines);
+        if (decodedBody != null) {
+          final decodedTitle = _extractProfileTitleFromBody(decodedBody);
+          if (decodedTitle != null && decodedTitle.toLowerCase() != urlHostLower) {
+            return decodedTitle;
+          }
         }
       }
     }
@@ -534,19 +627,11 @@ class SubscriptionSource {
     }
 
     // 4. From URL query, fragment, or path
-    final uri = Uri.tryParse(url);
     if (uri != null) {
       if (uri.fragment.trim().isNotEmpty) {
-        final frag = Uri.decodeComponent(uri.fragment.trim());
-        if (frag.isNotEmpty && !frag.contains('.') && frag.length <= 28) {
-          if (frag.startsWith('base64:')) {
-            final decoded = tryDecodeBase64(frag);
-            if (decoded != null && _isValidSubscriberName(decoded)) {
-              return decoded;
-            }
-          } else {
-            return frag;
-          }
+        final frag = sanitizeSubscriberName(uri.fragment, allowDots: false);
+        if (frag != null) {
+          return frag;
         }
       }
       for (final key in [
@@ -558,8 +643,9 @@ class SubscriptionSource {
         'client',
       ]) {
         final val = uri.queryParameters[key]?.trim();
-        if (val != null && val.isNotEmpty && !val.contains('.')) {
-          return Uri.decodeComponent(val);
+        if (val != null && val.isNotEmpty) {
+          final clean = sanitizeSubscriberName(val, allowDots: false);
+          if (clean != null) return clean;
         }
       }
       final segments =
@@ -596,18 +682,18 @@ class SubscriptionSource {
   /// preferring custom user names, URL fragments (#ali), or query/path parameters
   /// over raw domain names (e.g. 'panel.example.com').
   String get displayUserName {
-    if (subscriberName != null && subscriberName!.trim().isNotEmpty) {
-      final s = subscriberName!.trim();
-      return s.startsWith('اشتراک ') ? s : 'اشتراک $s';
+    final cleanSub = sanitizeSubscriberName(subscriberName);
+    if (cleanSub != null) {
+      return formatSubscriptionTitle(cleanSub);
     }
 
     final trimmedName = name.trim();
 
-    // If name is base64 encoded (e.g. "base64:bW9qdGFiYQ=="), decode it!
-    if (trimmedName.startsWith('base64:')) {
-      final decoded = tryDecodeBase64(trimmedName);
-      if (decoded != null && _isValidSubscriberName(decoded)) {
-        return decoded.startsWith('اشتراک ') ? decoded : 'اشتراک $decoded';
+    // If name is base64 encoded (e.g. "base64:bW9qdGFiYQ==" or "اشتراک base64:..."), decode it!
+    if (trimmedName.toLowerCase().contains('base64:')) {
+      final decoded = sanitizeSubscriberName(trimmedName);
+      if (decoded != null) {
+        return formatSubscriptionTitle(decoded);
       }
     }
 
@@ -625,20 +711,19 @@ class SubscriptionSource {
     final hasDomainInParentheses =
         RegExp(r'\([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\)').hasMatch(trimmedName);
 
+    final hasBase64Prefix = trimmedName.toLowerCase().contains('base64:');
     if (!isDomainLike &&
         !hasDomainInParentheses &&
         trimmedName.isNotEmpty &&
         !trimmedName.startsWith('sub_') &&
-        !trimmedName.startsWith('base64:') &&
+        !hasBase64Prefix &&
         !RegExp(r'^اشتراک\s*\d+$').hasMatch(trimmedName)) {
-      return trimmedName.startsWith('اشتراک ')
-          ? trimmedName
-          : 'اشتراک $trimmedName';
+      return formatSubscriptionTitle(trimmedName);
     }
 
     final fromUrl = extractSubscriberName(url: url);
     if (fromUrl != null && fromUrl.isNotEmpty) {
-      return fromUrl.startsWith('اشتراک ') ? fromUrl : 'اشتراک $fromUrl';
+      return formatSubscriptionTitle(fromUrl);
     }
 
     // Strip domain if name was like "اشتراک 4 (sub.example.com)"
@@ -646,7 +731,7 @@ class SubscriptionSource {
         trimmedName.replaceAll(RegExp(r'\s*\([^\)]+\)'), '').trim();
     if (cleanDefault.isNotEmpty &&
         !cleanDefault.contains('.') &&
-        !cleanDefault.startsWith('base64:')) {
+        !cleanDefault.toLowerCase().contains('base64:')) {
       return cleanDefault;
     }
 
@@ -695,10 +780,35 @@ class SubscriptionSource {
 
   factory SubscriptionSource.fromJson(Map<String, dynamic> json) {
     final rawUpdated = json['lastUpdatedAt'] as String?;
+    final rawName = json['name'] as String? ?? 'اشتراک';
+    final url = json['url'] as String? ?? '';
+    final cleanSubscriber = sanitizeSubscriberName(
+          json['subscriberName'] as String?,
+        ) ??
+        (rawName.toLowerCase().contains('base64:')
+            ? sanitizeSubscriberName(rawName)
+            : null);
+
+    var healedName = rawName;
+    if (cleanSubscriber != null &&
+        (rawName.trim().isEmpty ||
+            rawName.toLowerCase().contains('base64:'))) {
+      healedName = formatSubscriptionTitle(cleanSubscriber);
+    } else if (rawName.toLowerCase().contains('base64:')) {
+      final fromUrl = extractSubscriberName(url: url);
+      if (fromUrl != null && fromUrl.isNotEmpty) {
+        healedName = formatSubscriptionTitle(fromUrl);
+      } else if (url.trim().isNotEmpty) {
+        healedName = 'اشتراک ${generateSmartFallbackName(url)}';
+      } else {
+        healedName = 'اشتراک';
+      }
+    }
+
     return SubscriptionSource(
       id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? 'اشتراک',
-      url: json['url'] as String? ?? '',
+      name: healedName,
+      url: url,
       autoUpdate: json['autoUpdate'] as bool? ?? true,
       updateIntervalMinutes: json['updateIntervalMinutes'] as int? ?? 360,
       lastUpdatedAt: rawUpdated != null ? DateTime.tryParse(rawUpdated) : null,
@@ -708,7 +818,7 @@ class SubscriptionSource {
               Map<String, dynamic>.from(json['userInfo'] as Map),
             )
           : null,
-      subscriberName: json['subscriberName'] as String?,
+      subscriberName: cleanSubscriber,
     );
   }
 }

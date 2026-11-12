@@ -219,5 +219,87 @@ void main() {
         }
       },
     );
+
+    test(
+      'sets dns strategy to ipv4_only when enableIpv6 is false and prefer_ipv6 when true',
+      () {
+        final v4OnlyConfig = converter.buildAndroidLibboxConfig(
+          profile,
+          routingOptions: const SingboxRoutingOptions(enableIpv6: false),
+        );
+        expect(
+          (v4OnlyConfig['dns'] as Map<String, dynamic>)['strategy'],
+          equals('ipv4_only'),
+        );
+
+        final v6EnabledConfig = converter.buildAndroidLibboxConfig(
+          profile,
+          routingOptions: const SingboxRoutingOptions(
+            enableIpv6: true,
+            remoteDnsServer: '2606:4700:4700::1111',
+            directDnsServer: '2001:4860:4860::8888',
+          ),
+        );
+        final v6Dns = v6EnabledConfig['dns'] as Map<String, dynamic>;
+        expect(v6Dns['strategy'], equals('prefer_ipv6'));
+
+        final servers = v6Dns['servers'] as List<Map<String, dynamic>>;
+        final remote = servers.firstWhere((s) => s['tag'] == 'dns-remote');
+        final direct = servers.firstWhere((s) => s['tag'] == 'dns-direct');
+        expect(remote['server'], equals('2606:4700:4700::1111'));
+        expect(direct['server'], equals('2001:4860:4860::8888'));
+
+        final inbounds = v6EnabledConfig['inbounds'] as List<Map<String, dynamic>>;
+        final tun = inbounds.firstWhere((i) => i['type'] == 'tun');
+        expect(
+          tun['address'],
+          equals(const <String>['172.19.0.1/30', 'fdfe:dcba:9876::1/126']),
+        );
+      },
+    );
+
+    test('strips IPv6 brackets from outbound and WireGuard endpoint addresses', () {
+      const ipv6Vless = ServerProfile(
+        id: 'ipv6-vless-1',
+        protocol: 'vless',
+        source: ProfileSource.manual,
+        displayName: 'v6',
+        serverAddress: '[2001:db8::42]',
+        serverPort: 443,
+        extraParams: <String, dynamic>{
+          'uuid': '11111111-1111-1111-1111-111111111111',
+          'security': 'tls',
+          'sni': '[2001:db8::42]',
+        },
+      );
+      final vlessOut = converter.buildOutbound(ipv6Vless);
+      expect(vlessOut['server'], equals('2001:db8::42'));
+      expect(
+        (vlessOut['tls'] as Map<String, dynamic>)['server_name'],
+        equals('2001:db8::42'),
+      );
+
+      const ipv6Wg = ServerProfile(
+        id: 'ipv6-wg-1',
+        protocol: 'wireguard',
+        source: ProfileSource.manual,
+        displayName: 'wg-v6',
+        serverAddress: '[2001:db8::99]',
+        serverPort: 51820,
+        extraParams: <String, dynamic>{
+          'privateKey': 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+          'publicKey': 'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+          'localAddress': '10.0.0.2/32, fd00::2/128',
+        },
+      );
+      final wgConfig = converter.buildAndroidLibboxConfig(ipv6Wg);
+      final endpoints = wgConfig['endpoints'] as List<Map<String, dynamic>>;
+      final peers = endpoints.first['peers'] as List<Map<String, dynamic>>;
+      expect(peers.first['address'], equals('2001:db8::99'));
+      expect(
+        endpoints.first['address'],
+        equals(const <String>['10.0.0.2/32', 'fd00::2/128']),
+      );
+    });
   });
 }

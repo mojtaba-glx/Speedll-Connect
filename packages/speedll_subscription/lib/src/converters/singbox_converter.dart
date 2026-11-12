@@ -1,4 +1,5 @@
 import '../models/server_profile.dart';
+import '../parsers/subscription_parser.dart';
 import '../parsers/wireguard_parser.dart';
 import '../routing/china_direct_assets.dart';
 import '../routing/iran_direct_assets.dart';
@@ -41,6 +42,7 @@ class SingboxRoutingOptions {
     this.enableTrafficSniffing = false,
     this.enableMux = false,
     this.killSwitch = false,
+    this.enableIpv6 = false,
   });
 
   final RoutingRegion region;
@@ -53,6 +55,7 @@ class SingboxRoutingOptions {
   final bool enableTrafficSniffing;
   final bool enableMux;
   final bool killSwitch;
+  final bool enableIpv6;
 
   SingboxRoutingOptions copyWith({
     RoutingRegion? region,
@@ -65,6 +68,7 @@ class SingboxRoutingOptions {
     bool? enableTrafficSniffing,
     bool? enableMux,
     bool? killSwitch,
+    bool? enableIpv6,
   }) {
     return SingboxRoutingOptions(
       region: region ?? this.region,
@@ -78,6 +82,7 @@ class SingboxRoutingOptions {
           enableTrafficSniffing ?? this.enableTrafficSniffing,
       enableMux: enableMux ?? this.enableMux,
       killSwitch: killSwitch ?? this.killSwitch,
+      enableIpv6: enableIpv6 ?? this.enableIpv6,
     );
   }
 }
@@ -254,7 +259,7 @@ class SingboxConverter {
             'server': 'dns-direct',
           },
         ],
-      'strategy': 'ipv4_only',
+      'strategy': options.enableIpv6 ? 'prefer_ipv6' : 'ipv4_only',
       'final': 'dns-remote',
     };
   }
@@ -547,27 +552,35 @@ class SingboxConverter {
     ServerProfile profile, {
     bool enableMux = false,
   }) {
-    final protocol = profile.protocol.toLowerCase();
+    final normalizedHost = profile.serverAddress != null
+        ? SafeProxyUri.normalizeHost(profile.serverAddress!)
+        : null;
+    final effectiveProfile =
+        (normalizedHost != null && normalizedHost != profile.serverAddress)
+            ? profile.copyWith(serverAddress: normalizedHost)
+            : profile;
+
+    final protocol = effectiveProfile.protocol.toLowerCase();
     final Map<String, dynamic> outbound;
     switch (protocol) {
       case 'vless':
-        outbound = _buildVless(profile);
+        outbound = _buildVless(effectiveProfile);
       case 'vmess':
-        outbound = _buildVmess(profile);
+        outbound = _buildVmess(effectiveProfile);
       case 'trojan':
-        outbound = _buildTrojan(profile);
+        outbound = _buildTrojan(effectiveProfile);
       case 'shadowsocks':
-        outbound = _buildShadowsocks(profile);
+        outbound = _buildShadowsocks(effectiveProfile);
       case 'hysteria2':
-        outbound = _buildHysteria2(profile);
+        outbound = _buildHysteria2(effectiveProfile);
       case 'hysteria':
-        outbound = _buildHysteria(profile);
+        outbound = _buildHysteria(effectiveProfile);
       case 'tuic':
-        outbound = _buildTuic(profile);
+        outbound = _buildTuic(effectiveProfile);
       case 'anytls':
-        outbound = _buildAnyTls(profile);
+        outbound = _buildAnyTls(effectiveProfile);
       case 'wireguard':
-        outbound = _buildWireguardEndpoint(profile);
+        outbound = _buildWireguardEndpoint(effectiveProfile);
       default:
         throw SingboxConvertException(
           'پروتکل $protocol توسط مبدل sing-box پشتیبانی نمی‌شود.',
@@ -910,9 +923,10 @@ class SingboxConverter {
     ServerProfile profile,
     Map<String, dynamic> extra,
   ) {
-    final sni = _nonEmptyString(extra['sni']) ??
+    final rawSni = _nonEmptyString(extra['sni']) ??
         _nonEmptyString(extra['host']) ??
         profile.serverAddress;
+    final sni = rawSni != null ? SafeProxyUri.normalizeHost(rawSni) : null;
     final fp = _nonEmptyString(extra['fingerprint']) ??
         _nonEmptyString(extra['fp']) ??
         'chrome';
@@ -966,9 +980,10 @@ class SingboxConverter {
     ServerProfile profile,
     Map<String, dynamic> extra,
   ) {
-    final sni = _nonEmptyString(extra['sni']) ??
+    final rawSni = _nonEmptyString(extra['sni']) ??
         _nonEmptyString(extra['host']) ??
         profile.serverAddress;
+    final sni = rawSni != null ? SafeProxyUri.normalizeHost(rawSni) : null;
     final fp =
         _nonEmptyString(extra['fingerprint']) ?? _nonEmptyString(extra['fp']);
     final alpnRaw = _nonEmptyString(extra['alpn']);

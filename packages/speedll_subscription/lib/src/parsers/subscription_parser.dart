@@ -65,13 +65,28 @@ class SafeProxyUri {
 
     Uri? parsed = Uri.tryParse(beforeFragment);
     if (parsed == null) {
-      // Encode characters that commonly appear unescaped in subscription query strings
-      final sanitized = beforeFragment
+      // Encode characters that commonly appear unescaped in subscription query/path strings,
+      // while preserving bracketed IPv6 host literals like `[2001:db8::1]` in the authority.
+      final schemeEnd = beforeFragment.indexOf('://');
+      final afterSchemeStart = schemeEnd >= 0 ? schemeEnd + 3 : 0;
+      final pathOrQueryIdx = beforeFragment.indexOf(
+        RegExp(r'[/?]'),
+        afterSchemeStart,
+      );
+      final authorityPart = pathOrQueryIdx >= 0
+          ? beforeFragment.substring(0, pathOrQueryIdx)
+          : beforeFragment;
+      final tailPart = pathOrQueryIdx >= 0
+          ? beforeFragment.substring(pathOrQueryIdx)
+          : '';
+      final sanitizedTail = tailPart
           .replaceAll(' ', '%20')
           .replaceAll('|', '%7C')
           .replaceAll('[', '%5B')
           .replaceAll(']', '%5D');
-      parsed = Uri.parse(sanitized);
+      parsed = Uri.parse(
+        '${authorityPart.replaceAll(' ', '%20')}$sanitizedTail',
+      );
     }
 
     return SafeProxyUri(
@@ -79,6 +94,22 @@ class SafeProxyUri {
       fragment: decodedFragment,
       rawInput: cleaned,
     );
+  }
+
+  /// Trims [rawHost] and strips surrounding `[` `]` brackets when it represents
+  /// a valid bracketed IPv6 literal (e.g. `[2001:db8::1]` -> `2001:db8::1`).
+  static String normalizeHost(String rawHost) {
+    final trimmed = rawHost.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']') && trimmed.length > 2) {
+      final inner = trimmed.substring(1, trimmed.length - 1).trim();
+      try {
+        Uri.parseIPv6Address(inner);
+        return inner;
+      } on FormatException {
+        return trimmed;
+      }
+    }
+    return trimmed;
   }
 
   static String decodeFragmentSafely(String rawFragment) {
