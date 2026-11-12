@@ -53,3 +53,20 @@ flutter build apk --release --dart-define=SPEEDLL_NATIVE_LIBBOX=false
 - پیش‌فرض Dart در `AndroidVpnEngineAdapter` مسیر بومی (`libbox`) را فعال می‌کند.
 - با `--dart-define=SPEEDLL_NATIVE_LIBBOX=false` از مسیر قدیمی `SpeedllVpnService` استفاده می‌شود.
 - برای تست مقایسه‌ای باتری، فایل release بومی و legacy به‌ترتیب از روی دستگاه یک‌بار نصب و پیدا می‌شوند.
+
+## روش انتشار رسمی (Release Distribution)
+
+برای کاهش چشم‌گیر حجم فایل نصبی، حذف معماری‌های غیرضروری (مانند x86/x86_64) و اعمال بهینه‌سازی R8/Proguard:
+
+```bash
+cd app
+flutter build apk --release --split-per-abi
+```
+
+در صورت عدم پیکربندی `key.properties` برای بیلد تستی:
+```bash
+flutter build apk --release --split-per-abi -PallowDebugRelease=true
+```
+خروجی‌ها در مسیر `app/build/app/outputs/flutter-apk/` تولید می‌شوند:
+- `app-arm64-v8a-release.apk`
+- `app-armeabi-v7a-release.apk`

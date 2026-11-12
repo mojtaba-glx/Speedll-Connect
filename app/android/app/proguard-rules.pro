@@ -1,0 +1,4 @@
+-keep class io.nekohasekai.libbox.** { *; }
+-keep class go.** { *; }
+-keep class app.speedll.connect.** { *; }
+-keep class com.google.zxing.** { *; }

@@ -283,13 +283,17 @@ class LibboxVpnService : VpnService(), CommandServerHandler {
     }
 
     override fun triggerNativeCrash() {
-        Thread {
-            throw RuntimeException("debug native crash")
-        }.start()
+        if (BuildConfig.DEBUG) {
+            Thread {
+                throw RuntimeException("debug native crash")
+            }.start()
+        }
     }
 
     override fun writeDebugMessage(message: String?) {
-        Log.d("SpeedllLibbox", message.orEmpty())
+        if (BuildConfig.DEBUG) {
+            Log.d("SpeedllLibbox", message.orEmpty())
+        }
     }
 
     override fun connectSSHAgent(): Int = -1
