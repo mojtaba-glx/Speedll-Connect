@@ -2,6 +2,18 @@
 
 All notable changes to Speedll Connect will be documented here.
 
+## [1.9.0] - 2026-11-13
+
+- **Opt-In IPv6 Support (Disabled by Default):**
+  - Added **IPv6 Support / پشتیبانی از IPv6** switch in Settings (defaults to `false`).
+  - Added `enableIpv6` field to `SingboxRoutingOptions` and persistent `SecureProfileStorage`. When disabled, enforces `dns.strategy = ipv4_only` and strict IPv4 DNS resolution in `PingService` (never silently falling back to IPv6). When enabled, switches core DNS strategy to `prefer_ipv6` and prioritizes AAAA resolution with automatic IPv4 fallback.
+  - Updated Android `LocalResolver.kt` to filter `Inet4Address`/`Inet6Address` accurately based on sing-box query `network` (`ip4`/`ip6`), strip interface scope IDs (`%iface`), and return DNS `NOERROR` (0) instead of `NXDOMAIN` (3) when a domain resolves only under the opposite IP family.
+  - Updated `SafeProxyUri.parse` and `SingboxConverter` to preserve bracketed `[ipv6]` literals in proxy URIs while normalizing unbracketed IPv6 addresses across outbound `server`, WireGuard `peers`, and TLS `server_name`.
+  - Updated Home Screen IP pill and Server Selector rows with `Directionality(textDirection: TextDirection.ltr)` and responsive flex layout to render long IPv6 addresses cleanly without truncation artifacts or RTL reversal, plus Cloudflare/Google IPv6 DNS presets in Settings.
+- **Subscription Name Detection & Base64 Decoding (Hiddify-style):**
+  - Added unified `SubscriptionSource.sanitizeSubscriberName` and `formatSubscriptionTitle` helpers to decode `base64:`-prefixed titles (`profile-title` HTTP headers, `#profile-title:` inside raw or Base64-encoded subscription bodies, `Content-Disposition: filename*=UTF-8''...`, URL fragments, and query parameters).
+  - Automatically heals previously persisted `base64:` / `اشتراک base64:...` subscription titles during `SubscriptionSource.fromJson` deserialization and manual/background refreshes (`ConnectionController`, `ImportSubscriptionDialog`, `SelectServerDialog`).
+
 ## [1.8.0] - 2026-11-12
 
 - **Migration to Native Libbox TUN (sing-box v1.14.4):** Completely decommissioned legacy `SpeedllVpnService`, `Tun2SocksBridge`, and standalone `libsingbox.so` binaries in `jniLibs`, cutting APK size by >150MB and eliminating userspace packet bridging battery drain.
