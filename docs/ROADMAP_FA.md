@@ -69,7 +69,7 @@
 - [x] تست حداقل نمونه‌های پنل‌های مبدأ/Sanaei/X-Net با فیکسچرهای Sanitized
 - [x] تعریف Normalized Profile Schema نسخه‌دار (ServerProfile با schemaVersion و ProfileMigrator)
 - [x] تعریف Engine Adapter API و Native VPN Adapter API (AndroidVpnEngineAdapter)
-- [x] ثبت ADR انتخاب Core و روش packaging (sing-box در jniLibs و فراخوانی مجزا)
+- [x] ثبت ADR انتخاب Core و روش packaging (کتابخانه بومی libbox و ادغام TUN بومی - ADR 0002 و ADR 0003)
 - [x] تعیین حداقل نسخه OS و معماری CPU پشتیبانی‌شده (Android 7.0+ / API 24+, arm64-v8a و armeabi-v7a)
 
 **معیار خروج:** حداقل یک پروفایل واقعی Sanitized در PoC هر پلتفرم MVP متصل شود، disconnect واقعی تست شود و تصمیم موتور با شواهد ثبت شود.
@@ -77,17 +77,20 @@
 ## P3 — Android MVP
 
 - [x] ساخت Android application shell و package ID رسمی (app.speedll.connect)
-- [x] پیاده‌سازی VpnService و permission flow (SpeedllVpnService)
+- [x] پیاده‌سازی VpnService و permission flow (LibboxVpnService)
 - [x] مدیریت start/stop و foreground service notification
 - [x] مدیریت lifecycle و جلوگیری از اجرای دو نشست
-- [x] اتصال Engine Adapter منتخب (sing-box v1.14.4)
+- [x] اتصال Engine Adapter منتخب (sing-box v1.14.4 از طریق libbox)
 - [x] Secure Storage برای پروفایل و اسرار (Android Keystore AES-256-GCM + flutter_secure_storage)
 - [x] صفحه خانه با وضعیت واقعی Engine
 - [x] انتخاب سرور و فهرست پروفایل‌ها (SelectServerDialog)
-- [x] پشتیبانی تغییر Wi-Fi/mobile و بازیابی کنترل‌شده (ConnectivityManager.NetworkCallback در SpeedllVpnService با بازراه‌اندازی کنترل‌شده هسته و وضعیت `reconnecting`)
+- [x] پشتیبانی تغییر Wi-Fi/mobile و بازیابی کنترل‌شده (DefaultNetworkMonitor + libbox با بازراه‌اندازی کنترل‌شده هسته و وضعیت `reconnecting`)
 - [x] نمایش پیام خطای قابل فهم و کد تشخیصی بدون secret (DiagnosticErrorMapper با پالایش خودکار UUID، IP، توکن و رمزها)
 - [ ] تست Android API/ABIهای مصوب
 - [ ] تست battery، background، reboot و crash recovery
+- [ ] تست مقایسه‌ای باتری (1 ساعت صفحه خاموش + 1 ساعت استفاده) با dumpsys batterystats روی حداقل 2 دستگاه
+- [ ] تست نشت IPv6/DNS روی Android
+- [ ] تست auto-connect پس از تغییر Wi-Fi ↔ موبایل
 
 **معیار خروج:** اتصال واقعی و پایدار به سرور آزمایشی، قطع واقعی اتصال، بازیابی، تست نشت و QA روی حداقل دو دستگاه/نسخه Android.
 

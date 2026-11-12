@@ -2,6 +2,24 @@
 
 All notable changes to Speedll Connect will be documented here.
 
+## [1.7.2] - 2026-11-12
+
+- **Migration to Native Libbox TUN (ADR 0003):** Completely decommissioned legacy `SpeedllVpnService`, `Tun2SocksBridge`, and standalone `libsingbox.so` binaries in `jniLibs`, cutting APK size by >150MB and eliminating userspace packet bridging battery drain.
+- **Network & Battery Optimizations:**
+  - Removed `setMetered(false)` in `openTun` to correctly inherit metered network status from the underlying active connection.
+  - Added IPv6 ULA address (`fdfe:dcba:9876::1/126`) alongside IPv4 (`172.19.0.1/30`) to the native TUN inbound to prevent IPv6 traffic leakage.
+  - Set default TUN MTU to 9000 (matching SFA recommendations).
+  - Removed redundant root-only `auto_redirect` from TUN configuration and service override options.
+  - Streamlined smux multiplexing parameters with `padding: false` and removed `min_streams`.
+- **Health Checks & Background Timers:**
+  - Increased `_smartHealthTimer` interval from 10s to 60s (`_smartHealthInterval`) with optional constructor injection.
+  - Reduced sample count for background Smart health checks from 3 to 1 while keeping default 3-sample latency probing for UI interactions.
+- **Release Hardening & APK Optimization:**
+  - Enabled R8 minification (`minifyEnabled true`), resource shrinking (`shrinkResources true`), and keep rules in `proguard-rules.pro` for libbox, Go runtime, app, and ZXing.
+  - Added ABI filters to target only `arm64-v8a` and `armeabi-v7a`.
+  - Guarded debug crash triggers and verbose logging strictly behind `BuildConfig.DEBUG`.
+  - Added `flutter build apk --release --split-per-abi` release packaging instructions.
+
 ## [1.7.1] - 2026-11-12
 
 - Fixed Sing-box `ERR-CORE-CONFIG` unknown field bug by removing obsolete `sniff` fields from inbound options (sing-box v1.14 handles traffic sniffing strictly via `route.rules`).
