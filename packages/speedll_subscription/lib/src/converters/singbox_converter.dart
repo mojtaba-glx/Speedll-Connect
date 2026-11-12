@@ -205,6 +205,24 @@ class SingboxConverter {
       ...options.customDirectDomains,
     ];
 
+    final directDnsServerTrimmed = options.directDnsServer.trim();
+    final isLocalDirect = directDnsServerTrimmed.isEmpty ||
+        directDnsServerTrimmed.toLowerCase() == 'local' ||
+        directDnsServerTrimmed == '178.22.122.100';
+    final directDnsEntry = isLocalDirect
+        ? <String, dynamic>{
+            'type': 'local',
+            'tag': 'dns-direct',
+            'detour': 'direct',
+          }
+        : <String, dynamic>{
+            'type': 'udp',
+            'tag': 'dns-direct',
+            'server': directDnsServerTrimmed,
+            'server_port': 53,
+            'detour': 'direct',
+          };
+
     return <String, dynamic>{
       'servers': <Map<String, dynamic>>[
         <String, dynamic>{
@@ -216,14 +234,7 @@ class SingboxConverter {
           'server_port': 53,
           'detour': 'proxy',
         },
-        <String, dynamic>{
-          'type': 'udp',
-          'tag': 'dns-direct',
-          'server': options.directDnsServer.trim().isNotEmpty
-              ? options.directDnsServer.trim()
-              : '178.22.122.100',
-          'server_port': 53,
-        },
+        directDnsEntry,
       ],
       if (directDnsDomains.isNotEmpty)
         'rules': <Map<String, dynamic>>[
@@ -342,7 +353,6 @@ class SingboxConverter {
         'final': 'proxy',
         'auto_detect_interface': true,
         'default_domain_resolver': 'dns-direct',
-        'override_android_vpn': true,
       },
     };
   }

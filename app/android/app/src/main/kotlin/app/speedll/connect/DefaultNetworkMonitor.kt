@@ -34,10 +34,17 @@ object DefaultNetworkMonitor {
     private val request = NetworkRequest.Builder()
         .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED)
+        .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
         .build()
 
     private val callback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            val capabilities = connectivityManager?.getNetworkCapabilities(network) ?: return
+            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            ) {
+                return
+            }
             updateNetwork(network)
         }
 
@@ -45,10 +52,21 @@ object DefaultNetworkMonitor {
             network: Network,
             networkCapabilities: NetworkCapabilities,
         ) {
+            if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                !networkCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            ) {
+                return
+            }
             updateNetwork(network)
         }
 
         override fun onLinkPropertiesChanged(network: Network, linkProperties: LinkProperties) {
+            val capabilities = connectivityManager?.getNetworkCapabilities(network) ?: return
+            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) ||
+                !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            ) {
+                return
+            }
             updateNetwork(network)
         }
 
@@ -72,8 +90,21 @@ object DefaultNetworkMonitor {
             val activeCapabilities = activeNetwork?.let {
                 connectivityManager?.getNetworkCapabilities(it)
             }
-            if (activeCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) == true) {
+            if (activeCapabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) == true &&
+                !activeCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+            ) {
                 updateNetwork(activeNetwork)
+            } else {
+                val physicalNetwork = connectivityManager?.allNetworks?.firstOrNull { net ->
+                    val caps = connectivityManager?.getNetworkCapabilities(net)
+                    caps != null &&
+                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN) &&
+                        !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
+                }
+                if (physicalNetwork != null) {
+                    updateNetwork(physicalNetwork)
+                }
             }
         }
     }
@@ -106,14 +137,8 @@ object DefaultNetworkMonitor {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
                     manager.registerBestMatchingNetworkCallback(request, callback, callbackHandler)
 
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ->
-                    manager.requestNetwork(request, callback, callbackHandler)
-
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ->
-                    manager.registerDefaultNetworkCallback(callback, callbackHandler)
-
                 else ->
-                    manager.registerDefaultNetworkCallback(callback)
+                    manager.registerNetworkCallback(request, callback, callbackHandler)
             }
             registered = true
         } catch (e: Exception) {
@@ -154,6 +179,10 @@ object DefaultNetworkMonitor {
             val manager = connectivityManager ?: return
             val linkProperties = manager.getLinkProperties(network) ?: return
             val interfaceName = linkProperties.interfaceName ?: return
+            if (interfaceName.startsWith("tun")) {
+                Log.w(TAG, "Refusing to dispatch TUN interface as default: $interfaceName")
+                return
+            }
             val interfaceIndex = try {
                 NetworkInterface.getByName(interfaceName)?.index ?: -1
             } catch (_: Exception) {

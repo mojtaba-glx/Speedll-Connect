@@ -104,19 +104,26 @@ class LibboxVpnService : VpnService(), CommandServerHandler {
             closeTunLocked()
             tunInterface = interfaceDescriptor
         }
-        DefaultNetworkMonitor.defaultNetwork?.let { network ->
-            try {
+        val network = DefaultNetworkMonitor.defaultNetwork
+        try {
+            if (network != null) {
                 setUnderlyingNetworks(arrayOf(network))
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not set underlying network: ${e.javaClass.simpleName}")
+            } else {
+                setUnderlyingNetworks(null)
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not set underlying network: ${e.javaClass.simpleName}")
         }
     }
 
     internal fun onPhysicalNetworkChanged(network: android.net.Network?) {
-        if (network == null || tunInterface == null) return
+        if (tunInterface == null) return
         try {
-            setUnderlyingNetworks(arrayOf(network))
+            if (network != null) {
+                setUnderlyingNetworks(arrayOf(network))
+            } else {
+                setUnderlyingNetworks(null)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Could not update underlying network: ${e.javaClass.simpleName}")
         }

@@ -61,7 +61,7 @@ void main() {
       expect(route['final'], equals('proxy'));
       expect(route['auto_detect_interface'], isTrue);
       expect(route['default_domain_resolver'], equals('dns-direct'));
-      expect(route['override_android_vpn'], isTrue);
+      expect(route.containsKey('override_android_vpn'), isFalse);
       expect(rules.any((rule) => rule['action'] == 'sniff'), isTrue);
       expect(
         rules.any(

@@ -51,8 +51,8 @@ class LibboxPlatformInterface(
     override fun usePlatformAutoDetectInterfaceControl(): Boolean = true
 
     override fun autoDetectInterfaceControl(fd: Int) {
-        if (!service.protect(fd)) {
-            error("android: protect failed")
+        if (fd > 0 && !service.protect(fd)) {
+            Log.w(TAG, "android: protect failed for socket fd=$fd")
         }
     }
 
@@ -77,45 +77,89 @@ class LibboxPlatformInterface(
         addAddresses(options.inet6Address, builder)
 
         if (options.autoRoute) {
+            var dnsCount = 0
             val dnsMode = options.dnsMode?.value
             if (dnsMode != Libbox.DNSModeDisabled) {
-                val dnsServers = options.dnsServerAddress
-                while (dnsServers.hasNext()) {
-                    builder.addDnsServer(dnsServers.next())
+                try {
+                    val dnsServers = options.dnsServerAddress
+                    while (dnsServers.hasNext()) {
+                        val dns = dnsServers.next()
+                        if (dns.isNotBlank()) {
+                            builder.addDnsServer(dns)
+                            dnsCount++
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed reading dnsServerAddress: ${e.message}")
+                }
+            }
+            if (dnsCount == 0) {
+                builder.addDnsServer("172.19.0.2")
+                builder.addDnsServer("1.1.1.1")
+            }
+
+            var hasV4Route = false
+            try {
+                val inet4Routes = options.inet4RouteAddress
+                while (inet4Routes.hasNext()) {
+                    val route = inet4Routes.next()
+                    try {
+                        builder.addRoute(route.address(), route.prefix())
+                        hasV4Route = true
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to add IPv4 route ${route.address()}/${route.prefix()}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed reading inet4RouteAddress: ${e.message}")
+            }
+
+            if (!hasV4Route) {
+                builder.addRoute("0.0.0.0", 0)
+            }
+
+            var hasV6Route = false
+            try {
+                val inet6Routes = options.inet6RouteAddress
+                while (inet6Routes.hasNext()) {
+                    val route = inet6Routes.next()
+                    try {
+                        builder.addRoute(route.address(), route.prefix())
+                        hasV6Route = true
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to add IPv6 route ${route.address()}/${route.prefix()}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed reading inet6RouteAddress: ${e.message}")
+            }
+
+            if (!hasV6Route) {
+                try {
+                    builder.addRoute("::", 0)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to add default IPv6 route: ${e.message}")
                 }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val inet4Routes = options.inet4RouteAddress
-                if (inet4Routes.hasNext()) {
-                    while (inet4Routes.hasNext()) {
-                        builder.addRoute(inet4Routes.next().toIpPrefix())
+                try {
+                    val excludedInet4Routes = options.inet4RouteExcludeAddress
+                    while (excludedInet4Routes.hasNext()) {
+                        builder.excludeRoute(excludedInet4Routes.next().toIpPrefix())
                     }
-                } else if (options.inet4Address.hasNext()) {
-                    builder.addRoute("0.0.0.0", 0)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed excluding IPv4 route: ${e.message}")
                 }
 
-                val inet6Routes = options.inet6RouteAddress
-                if (inet6Routes.hasNext()) {
-                    while (inet6Routes.hasNext()) {
-                        builder.addRoute(inet6Routes.next().toIpPrefix())
+                try {
+                    val excludedInet6Routes = options.inet6RouteExcludeAddress
+                    while (excludedInet6Routes.hasNext()) {
+                        builder.excludeRoute(excludedInet6Routes.next().toIpPrefix())
                     }
-                } else if (options.inet6Address.hasNext()) {
-                    builder.addRoute("::", 0)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed excluding IPv6 route: ${e.message}")
                 }
-
-                val excludedInet4Routes = options.inet4RouteExcludeAddress
-                while (excludedInet4Routes.hasNext()) {
-                    builder.excludeRoute(excludedInet4Routes.next().toIpPrefix())
-                }
-
-                val excludedInet6Routes = options.inet6RouteExcludeAddress
-                while (excludedInet6Routes.hasNext()) {
-                    builder.excludeRoute(excludedInet6Routes.next().toIpPrefix())
-                }
-            } else {
-                addRoutes(options.inet4RouteRange, builder)
-                addRoutes(options.inet6RouteRange, builder)
             }
 
             addPackages(options.includePackage, builder, allow = true)
@@ -221,24 +265,47 @@ class LibboxPlatformInterface(
         destinationPort: Int,
     ): ConnectionOwner {
         val owner = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val manager = connectivityManager ?: error("android: missing connectivity manager")
-            val uid = manager.getConnectionOwnerUid(
-                ipProtocol,
-                InetSocketAddress(sourceAddress, sourcePort),
-                InetSocketAddress(destinationAddress, destinationPort),
-            )
-            if (uid == Process.INVALID_UID) {
-                error("android: connection owner not found")
+            val manager = connectivityManager
+            val uid = if (manager != null) {
+                try {
+                    manager.getConnectionOwnerUid(
+                        ipProtocol,
+                        InetSocketAddress(sourceAddress, sourcePort),
+                        InetSocketAddress(destinationAddress, destinationPort),
+                    )
+                } catch (_: Exception) {
+                    Process.INVALID_UID
+                }
+            } else {
+                Process.INVALID_UID
             }
-            ConnectionOwner().apply { userId = uid }
+            if (uid != Process.INVALID_UID) {
+                ConnectionOwner().apply { userId = uid }
+            } else {
+                try {
+                    Libbox.findConnectionOwner(
+                        ipProtocol,
+                        sourceAddress,
+                        sourcePort,
+                        destinationAddress,
+                        destinationPort,
+                    )
+                } catch (_: Exception) {
+                    ConnectionOwner().apply { userId = Process.INVALID_UID }
+                }
+            }
         } else {
-            Libbox.findConnectionOwner(
-                ipProtocol,
-                sourceAddress,
-                sourcePort,
-                destinationAddress,
-                destinationPort,
-            )
+            try {
+                Libbox.findConnectionOwner(
+                    ipProtocol,
+                    sourceAddress,
+                    sourcePort,
+                    destinationAddress,
+                    destinationPort,
+                )
+            } catch (_: Exception) {
+                ConnectionOwner().apply { userId = Process.INVALID_UID }
+            }
         }
 
         val packageNames = try {
