@@ -92,8 +92,8 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 
 | نام فایل | اندازه | چک‌سام SHA-256 |
 | :--- | :---: | :--- |
-| `Speedll-Connect-v1.8.0-arm64-v8a.apk` | ۳۵.۹۳ MB | `b7b9e62acb87576e0d4804f79c914206524b2bc3ea0f8127b445c3f006c07bc5` |
-| `Speedll-Connect-v1.8.0-armeabi-v7a.apk` | ۳۵.۵۴ MB | `d2dbb85f763565fe01257c9d4ec93178c5b1df6717ad95b4daf734e05742de33` |
+| `Speedll-Connect-v1.8.0-arm64-v8a.apk` | ۳۵.۹۳ MB | `d7db3d675c72f9a0c1871f6edeacdfb9bb90334bbda85ad3b65e745ea279e2fe` |
+| `Speedll-Connect-v1.8.0-armeabi-v7a.apk` | ۳۵.۵۴ MB | `6a6d97662dc3f2dd7c0fb377c8b0ad2a30b7ab1a732152339a3dba5517fbe099` |
 
 ### متادیتای استخراج‌شده با `aapt2 dump badging`:
 - `package: name='app.speedll.connect'`
@@ -143,6 +143,7 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 5. `28243a0`: `chore: ignore release-test directory`
 6. `b737df3`: `docs(reports): add release 1.8.0 verification and test report`
 7. `0147e43`: `fix(engine): resolve routing loop, default route omission, and DNS deadlock on Android`
+8. `a797208`: `fix(engine): switch to gvisor stack, add port 53 dns hijack, and implement LocalResolver`
 
 ---
 
@@ -173,3 +174,22 @@ Signing Scheme Supported:      v2 scheme: true | v3 scheme: true
 ### ۶. مدیریت خطای مالک سوکت در `findConnectionOwner`
 - **علت:** پرتاب استثنای خام `error("android: connection owner not found")` هنگام عدم شناسایی UID باعث بسته شدن ناگهانی برخی ارتباطات می‌شد.
 - **اصلاح:** هدایت نرم خطا به fallback رسمی `Libbox.findConnectionOwner`.
+
+---
+
+## ۱۲. حل قطعی مشکل عدم باز شدن تلگرام و خطای DNS (کامیت `a797208`)
+
+در فاز تست دستگاه کاربر، دو رفتار مهم دیگر مشاهده و رفع شد:
+
+### ۱. عبور نکردن ترافیک TCP (تلگرام و وب) به دلیل استک `mixed`
+- **علت فنی:** در هسته sing-box، مقدار `stack: 'mixed'` به این معناست که ترافیک UDP توسط استک کاربران gVisor پردازش شود، اما ترافیک TCP به استک سیستمی سیستم‌عامل محول گردد. در سیستم‌عامل اندروید بدون دسترسی روت، هسته لینوکس هیچ امکانی برای دریافت پکت‌های TCP خام از اینترفیس TUN و اتصال آن‌ها به سوکت‌های سیستم‌عامل ندارد. در نتیجه ترافیک TCP اپلیکیشن‌ها (تلگرام، مرورگرها، اینستاگرام) به صورت خام در تونل ریخته شده و هرگز هندشیک TCP شکل نمی‌گرفت و دیتایی منتقل نمی‌شد.
+- **اصلاح:** مقدار `stack` اینباند Tun به طور قطعی روی `'gvisor'` تنظیم گردید تا هر دو پروتکل TCP و UDP به صورت ۱۰۰٪ در فضای کاربری توسط gVisor پردازش شده و به سوکت‌های پروکسی خروجی متصل شوند.
+
+### ۲. نادیده گرفته شدن کوئری‌های DNS هنگام خاموش بودن Sniffing
+- **علت فنی:** در تنظیمات کاربر ویژگی «تشخیص هوشمند ترافیک (Sniffing)» خاموش بود. قاعده روتینگ `protocol: "dns"` برای تشخیص پروتکل وابسته به اسنیفر است؛ در غیاب اسنیفر، پکت‌های ارسالی به پورت ۵۳ به عنوان DNS تشخیص داده نمی‌شدند و به جای `hijack-dns`، به سمت پروکسی هدایت می‌شدند و چون مقصد آن‌ها آدرس مجازی تونل (`172.19.0.2`) بود، توسط سرور مقصد دراپ می‌شدند.
+- **اصلاح:** افزودن قاعده صریح `{"port": [53], "action": "hijack-dns"}` به رول‌های روتینگ، به طوری که بدون وابستگی به روشن بودن اسنیفر، کلیه ترافیک پورت ۵۳ فوراً توسط هسته DNS رهگیری شود.
+
+### ۳. پیاده‌سازی `LocalResolver` و حل خطای `ERR-CORE-START`
+- **علت فنی:** در واسط پلتفرم اندروید (`LibboxPlatformInterface.kt`) متد `localDNSTransport()` مقدار `null` برمی‌گرداند. هنگامی که در کانفیگ سرور `dns-direct` از نوع `local` تعریف می‌شد یا نیاز به ریزالو دامنه‌های محلی بود، نبود پیاده‌سازی ترانسپورت DNS محلی باعث بروز خطای زمان شروع هسته (`ERR-CORE-START`) می‌شد. همچنین در صورت تنظیم سرور `8.8.8.8` برای دایرکت، به علت مسدودی UDP 53 این آی‌پی روی اینترنت ایران، راه‌اندازی با تایم‌اوت مواجه می‌شد.
+- **اصلاح:** کلاس بومی `LocalResolver` مطابق اینترفیس `LocalDNSTransport` ساخته شد و با استفاده از متد استاندارد `DefaultNetworkMonitor.defaultNetwork.getAllByName(domain)`، کوئری‌های دایرکت و محلی مستقیماً از طریق DNS اختصاصی سیم‌کارت/وای‌فای فیزیکی بدون هیچ‌گونه لوپ یا اختلال پاسخ داده می‌شوند. همچنین سرور `dns-remote` جهت پاسخ‌دهی سریع‌تر و پایدارتر درون تونل از نوع `udp` بر بستر پروتکل ایمن VLESS XUDP تنظیم گردید.
+
